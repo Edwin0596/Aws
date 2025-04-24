@@ -52,7 +52,7 @@
       "id": 123,
       "activo": true
     }
-  }```
+  }
 
 
 ## 2. Propiedades de los Datos (3 V's)  
@@ -441,18 +441,18 @@
 
 ### 8.3 Políticas de Bucket (S3 Bucket Policies)  
 **Estructura**:  
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": "*",
-      "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::mi-bucket/*"
-    }
-  ]
-}``` 
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": "*",
+        "Action": "s3:GetObject",
+        "Resource": "arn:aws:s3:::mi-bucket/*"
+      }
+    ]
+  }
 
 
 ## 9. Versionado de Objetos en S3  
