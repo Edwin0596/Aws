@@ -1764,3 +1764,201 @@ La guía del examen destaca el manejo de información de identificación persona
 - Proporciona cierto anonimato
 
 Estas son las transformaciones específicas en DataBrew para manejar información personalmente identificable.
+
+## 24. Amazon Athena
+
+### 24.1 Introducción a Amazon Athena
+
+Amazon Athena es un motor de consulta interactivo serverless para datos almacenados en S3. Te permite consultar grandes data lakes en S3 como si fueran bases de datos SQL, sin necesidad de cargar los datos en un sistema intermedio.
+
+### 24.2 Características principales
+
+- **Motor de consulta interactivo para S3**: Proporciona una interfaz SQL para tus datos en S3
+- **Sin carga de datos**: Los datos permanecen en S3; no es necesario cargarlos en una base de datos intermedia
+- **Basado en Presto**: Aunque ha evolucionado significativamente desde sus orígenes
+- **Totalmente serverless**: No necesitas gestionar la infraestructura subyacente
+- **Facilidad de uso**: Simplemente accedes a la consola de Athena, apuntas a tus datos en S3 y empiezas a escribir consultas
+
+### 24.3 Formatos de datos compatibles
+
+Athena soporta múltiples formatos de datos:
+
+#### 24.3.1 Formatos legibles por humanos
+- CSV (valores separados por comas)
+- TSV (valores separados por tabulaciones)
+- JSON
+
+#### 24.3.2 Formatos columnares y divisibles
+- ORC (formato columnar optimizado)
+- Parquet (formato columnar)
+
+#### 24.3.3 Otros formatos divisibles
+- Avro (divisible pero no columnar)
+
+#### 24.3.4 Compresión
+- Snappy
+- Zlib
+- LZ4
+- GZIP
+
+### 24.4 Puntos clave para el examen
+
+- ORC y Parquet son formatos columnares y divisibles
+- Avro es solo divisible (no columnar)
+- CSV, TSV y JSON son formatos legibles por humanos
+- Los formatos divisibles permiten procesamiento en paralelo
+- Los formatos columnares aceleran consultas que solo necesitan columnas específicas
+
+### 24.5 Tipos de datos compatibles
+
+Athena puede trabajar con datos:
+- No estructurados
+- Semi-estructurados
+- Estructurados
+
+Puede inferir un esquema examinando los datos o utilizar un esquema que tú proporciones.
+
+### 24.6 Casos de uso
+
+- **Consultas ad hoc de logs web**: Alternativa preferida a Elasticsearch para consultar logs web en S3
+- **Consulta de datos de staging**: Antes de cargarlos en Redshift
+- **Análisis de logs diversos**: CloudTrail, CloudFront, VPC, Elastic Load Balancer, etc.
+- **Integración con herramientas de análisis**: 
+  - Notebooks (Jupyter, Zeppelin, RStudio)
+  - Interfaces ODBC y JDBC
+  - Amazon QuickSight para visualización
+
+Athena actúa como conector entre los datos no estructurados en S3 y herramientas de visualización o análisis estructurados como QuickSight.
+
+## 25. Athena y AWS Glue
+
+### 25.1 Integración entre Athena y AWS Glue
+
+Para impartir estructura a datos no estructurados en S3 y permitir que Athena los consulte como una base de datos, se utiliza AWS Glue:
+
+- El **Glue Crawler** explora los datos en S3 y popula el **Glue Data Catalog**
+- El Crawler extrae columnas y definiciones de tablas de los datos
+- Se puede usar la consola de Glue para refinar esta definición según sea necesario
+
+Una vez que se publica un Glue Data Catalog para los datos en S3:
+- Athena lo ve automáticamente y construye una tabla a partir de él
+- Esto permite consultar los datos con SQL, como cualquier otra base de datos
+
+El Glue Data Catalog no es exclusivo para Athena, también puede ser utilizado por:
+- Amazon RDS
+- Amazon Redshift y Redshift Spectrum
+- Amazon EMR
+- Cualquier aplicación compatible con Apache Hive Metastore
+
+Esta integración permite:
+- Crear un repositorio unificado de metadatos entre varios servicios
+- Descubrir esquemas mediante rastreo de datos
+- Mantener versiones de esquemas
+- Proporcionar una interfaz SQL a través de Athena
+
+### 25.2 Athena Workgroups
+
+Los Workgroups (grupos de trabajo) en Athena permiten:
+
+- Organizar usuarios, equipos, aplicaciones y cargas de trabajo en diferentes grupos
+- Controlar el acceso a consultas para cada grupo de trabajo
+- Realizar seguimiento de costos por grupo de trabajo
+
+Características principales:
+- **Integración con IAM, CloudWatch y SNS**: Permite notificaciones cuando se alcanzan límites
+- **Límites de datos**: Se puede limitar cuántos datos pueden escanear las consultas por workgroup
+- **Historial de consultas individual**: Cada workgroup tiene su propio historial
+- **Políticas IAM separadas**: Cada workgroup puede tener sus propias políticas de permisos
+- **Configuración de cifrado individual**: Cada workgroup puede tener su propia configuración
+
+Los workgroups son útiles para:
+- Limitar el acceso de grupos específicos
+- Medir costos de diferentes equipos
+- Establecer límites sobre la cantidad de datos que pueden escanear las consultas
+
+### 25.3 Optimización del rendimiento de Athena
+
+Para optimizar el rendimiento de Athena, se recomiendan tres enfoques principales:
+
+#### 25.3.1 Usar formatos de datos columnares
+- **ORC o Parquet** ofrecen mejor rendimiento
+- Se pueden usar herramientas como Glue para transformar datos a estos formatos
+- Permiten a Athena leer selectivamente solo las columnas requeridas
+
+#### 25.3.2 Tamaño y número de archivos
+- Un pequeño número de archivos grandes funciona mejor que muchos archivos pequeños
+- Los archivos columnares grandes ofrecen el mejor rendimiento
+
+#### 25.3.3 Utilizar particiones
+- Organizar datos en S3 en formato de partición que se alinee con los patrones de consulta
+- Por ejemplo, particionar por fecha si las consultas suelen filtrar por rangos de fechas
+- Para añadir particiones a bases de datos existentes, se puede usar el comando `MSCK REPAIR TABLE`
+
+### 25.4 Soporte para transacciones ACID en Athena
+
+Athena ofrece soporte para transacciones ACID (Atomicidad, Consistencia, Aislamiento, Durabilidad):
+
+- Permite a usuarios concurrentes modificar las mismas filas simultáneamente de manera segura
+- Utiliza **Apache Iceberg** bajo el capó
+- Para activarlo, añadir `TABLE_TYPE = 'ICEBERG'` al crear una tabla en Athena
+- Compatible con Elastic MapReduce, Apache Spark y cualquier sistema que soporte Apache Iceberg
+- Elimina la necesidad de bloqueo personalizado de registros
+- Ofrece operaciones de "time travel" para recuperar datos recientemente eliminados
+
+Este es otro enfoque para lograr transacciones ACID, similar a las tablas gobernadas en Lake Formation:
+- Se puede configurar una tabla gobernada en Lake Formation y acceder con Athena 
+- O crear directamente una tabla en Athena con tipo Iceberg
+
+Para mantener el rendimiento con tablas ACID:
+- Es necesario compactar periódicamente los datos
+- Se usa el comando: `OPTIMIZE table_name REWRITE DATA USING BIN_PACK WHERE catalog = 'catalog_name'`
+
+### 25.5 Control de acceso detallado al Catálogo de Datos de Glue
+
+Athena permite control de acceso basado en IAM a nivel de base de datos y tabla para operaciones específicas:
+
+- Más amplio que los filtros de datos en Lake Formation (no es seguridad a nivel de celda, fila o columna)
+- Se aplica a todas las versiones de tabla, no se puede restringir a versiones específicas
+
+Requisitos mínimos:
+- Política IAM para Athena que otorgue acceso a la base de datos
+- Acceso al Glue Data Catalog en cada región
+
+Se pueden restringir operaciones como:
+- ALTER o CREATE DATABASE
+- CREATE TABLE
+- DROP DATABASE o DROP TABLE
+- REPAIR TABLE
+- SHOW DATABASES o SHOW TABLES
+
+Para implementar estos controles, es necesario mapear operaciones a acciones IAM específicas. Por ejemplo, para restringir DROP TABLE se necesitan permisos para:
+- Obtener la partición y particiones de la tabla
+- Obtener la tabla y la base de datos
+- Eliminar la tabla y la partición
+
+### 25.6 Modelo de costos y seguridad
+
+#### 25.6.1 Costos
+- Pago por uso: $5 por terabyte escaneado
+- Las consultas exitosas o canceladas cuentan para el volumen escaneado
+- Las consultas fallidas no generan cargos
+- Las operaciones DDL (CREATE, ALTER, DROP) son gratuitas
+- Los formatos columnares pueden ahorrar entre 30-90% en costos
+- La partición de datos también reduce costos al escanear menos datos
+
+#### 25.6.2 Seguridad
+Athena ofrece varias opciones de seguridad:
+- **Control de acceso**: IAM, ACLs y políticas de bucket S3
+- **Políticas IAM relevantes**: Amazon Athena Full Access y AWS QuickSight Athena Access
+- **Cifrado de resultados** en S3:
+  - SSE-S3: Cifrado del lado del servidor con clave administrada por S3
+  - SSE-KMS: Cifrado del lado del servidor con clave KMS
+  - CSE-KMS: Cifrado del lado del cliente con clave KMS
+- **Acceso entre cuentas**: Definido en la política de bucket S3
+- **Seguridad en tránsito**: TLS para todo el tráfico entre Athena y S3
+
+### 25.7 Anti-patrones
+
+Casos en los que no se recomienda usar Athena:
+- Para informes altamente formateados o visualizaciones (usar QuickSight en su lugar)
+- Para operaciones ETL (Extract, Transform, Load) - usar Glue ETL o Apache Spark en su lugar
