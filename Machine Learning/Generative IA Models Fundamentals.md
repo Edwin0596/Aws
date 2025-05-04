@@ -413,3 +413,108 @@ Los Transformers son modelos fundamentales (foundation models) que sirven como b
   - Evitar el overfitting (sobreajuste) al conjunto de entrenamiento
 - Evaluación continua para asegurar que el modelo mantiene el comportamiento deseado
 
+## 7. AWS Foundation Models and SageMaker JumpStart with Generative AI
+
+### 7.1 ¿Qué son los Foundation Models?
+
+- Modelos Transformer pre-entrenados y masivos
+- Diseñados para ser punto de partida para fine-tuning
+- Características principales:
+  - Entienden los fundamentos del funcionamiento del lenguaje
+  - Pueden adaptarse a tareas específicas mediante fine-tuning
+  - Representan la base sobre la cual construir aplicaciones
+
+### 7.2 Disponibilidad de modelos en AWS
+
+#### 7.2.1 Modelos NO disponibles en AWS
+
+| Modelo | Proveedor | Motivo de no disponibilidad |
+|--------|-----------|----------------------------|
+| GPT (serie actual) | OpenAI/Microsoft | Competidor directo (Azure) |
+| BERT | Google | Competidor directo (Google Cloud) |
+| DALL-E | OpenAI/Microsoft | Competidor directo (Azure) |
+
+**Excepciones**: 
+- GPT-2 y derivados (GPT-J): Disponibles por ser open source
+- Versiones antiguas de modelos pueden estar accesibles
+
+#### 7.2.2 Modelos disponibles en AWS
+
+| Modelo | Proveedor | Características | Uso principal |
+|--------|-----------|-----------------|---------------|
+| Jurassic-2 | AI21 Labs | Multilingual | Generación de texto en múltiples idiomas |
+| Claude | Anthropic | Conversaciones | Chatbots, Q&A, automatización de flujos |
+| Stable Diffusion | Stability AI | Generación de imágenes | Creación de arte, logos, diseños |
+| Amazon Titan | Amazon | Propósito general | Generación, resumen, embeddings |
+| LLaMA | Meta | Generación de texto | Múltiples aplicaciones NLP |
+| Segment Anything | Meta | Segmentación de imágenes | Análisis y procesamiento de imágenes |
+
+### 7.3 Características específicas de los modelos
+
+#### 7.3.1 Jurassic-2 (AI21 Labs)
+- Especialización: Multilingual
+- Idiomas soportados: Español, francés, alemán, portugués, italiano, holandés
+- Principal fortaleza: Diversidad lingüística
+
+#### 7.3.2 Claude (Anthropic)
+- Especialización: Conversaciones
+- Capacidades:
+  - Question answering
+  - Workflow automation
+  - Diálogos avanzados
+
+#### 7.3.3 Stable Diffusion (Stability AI)
+- Especialización: Generación de imágenes
+- Aplicaciones:
+  - Creación de arte digital
+  - Diseño de logos
+  - Generación de diseños visuales
+
+#### 7.3.4 Amazon Titan
+- Producto propio de Amazon (lanzamiento inicial)
+- Capacidades:
+  - Generación de texto generalista
+  - Resumen de textos
+  - Question answering
+  - **Embeddings API**: 
+    - Calcula similitudes entre tokens/frases
+    - Aplicaciones en personalización y búsqueda
+    - Recomendaciones basadas en similitud semántica
+
+### 7.4 SageMaker JumpStart
+
+#### 7.4.1 Descripción y funcionalidad
+- Plataforma para lanzar notebooks pre-configurados
+- Integración con modelos pre-entrenados
+- Facilita la experimentación rápida con Foundation Models
+
+#### 7.4.2 Características principales
+- Notebooks pre-poblados con ejemplos
+- Guías para:
+  - Cargar el modelo
+  - Alimentar datos
+  - Consultar y obtener resultados
+  - Fine-tunar para tareas específicas
+  - Gestionar recursos (apagado, etc.)
+
+#### 7.4.3 Integración con Hugging Face
+- Acceso al ecosistema completo de Hugging Face
+- Modelos disponibles incluyen:
+  - Falcon
+  - BLOOM-Z
+  - GPT-J
+  - GPT-2
+  - Alexa Large Language Model
+- Permite experimentar con cualquier modelo de la plataforma
+
+### 7.5 Estrategia de AWS en Foundation Models
+
+- Rol como agregador de modelos
+- Similitud con Hugging Face (centralización de recursos)
+- Propuesta de valor:
+  - Acceso concentrado a múltiples proveedores
+  - Integración nativa con ecosistema AWS
+  - Facilidad de implementación y experimentación
+- Desarrollo propio (Amazon Titan) combinado con partnerships
+- Enfoque en facilitar el acceso y uso rather than desarrollo desde cero
+
