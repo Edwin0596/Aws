@@ -1,1964 +1,3236 @@
 # Data Transformation, Integrity and Feature Engineering
 
-## 1. Elastic MapReduce (EMR) y Hadoop Overview
+## 1. Elastic MapReduce (EMR) and Hadoop Overview
 
-### 1.1 Introducción a EMR
+### 1.1. Introducción a Amazon EMR
 
-EMR (Elastic MapReduce) es un framework de Hadoop gestionado que se ejecuta en instancias EC2. El nombre puede resultar confuso porque MapReduce en sí es una parte algo obsoleta de Hadoop, y EMR es mucho más que simplemente un cluster de Hadoop.
+Amazon EMR (Elastic MapReduce) es un framework de Hadoop administrado que se ejecuta sobre instancias EC2. Aunque su nombre incluye "MapReduce", EMR es mucho más que eso, ya que MapReduce como tecnología ha quedado algo obsoleta.
 
-EMR incluye Hadoop y MapReduce, pero son las tecnologías construidas sobre Hadoop las que se utilizan con mayor frecuencia, como:
-- Spark
+EMR incluye un ecosistema completo de herramientas de procesamiento de datos:
+- Apache Spark
 - HBase
 - Presto
-- Flink
-- Hive
-- Y muchas otras herramientas preinstaladas
+- Apache Flink
+- Apache Hive
+- Otros componentes complementarios
 
-También existe algo llamado EMR notebooks, similar a un Jupyter notebook que se ejecuta en tu cluster EMR, y tiene varios puntos de integración con servicios AWS.
+Además, EMR ofrece EMR Notebooks, similares a los Jupyter Notebooks, que permiten interactuar con el clúster de manera más visual e intuitiva.
 
-### 1.2 EMR en Machine Learning
+### 1.2. Relevancia de EMR para Machine Learning
 
-EMR es relevante para el mundo del machine learning cuando tienes un conjunto de datos masivo que necesitas preparar, normalizar, escalar o tratar de otra manera antes de introducirlo en tus algoritmos.
+EMR es especialmente útil en machine learning cuando trabajamos con conjuntos de datos masivos que necesitan ser procesados antes de entrenar modelos. El procesamiento distribuido que ofrece EMR permite:
 
-EMR proporciona una forma de distribuir la carga de procesamiento de datos a través de un cluster completo de computadoras. Para conjuntos de datos masivos, a menudo necesitas un cluster para procesar esos datos y prepararlos para tus trabajos de entrenamiento de machine learning en paralelo.
+- Preparar grandes volúmenes de datos en paralelo
+- Normalizar o escalar características más rápidamente
+- Realizar transformaciones complejas de manera eficiente
+- Distribuir la carga de procesamiento entre múltiples computadoras
 
-### 1.3 Estructura de un Cluster EMR
+Esto es crucial cuando un conjunto de datos es demasiado grande para ser procesado en una sola máquina, permitiendo preparar datos a escala para tareas de machine learning.
 
-Un cluster en EMR es una colección de instancias EC2 donde cada instancia EC2 se denomina node (nodo). Cada nodo tiene un rol dentro del cluster, llamado node type (tipo de nodo):
+### 1.3. Arquitectura de un Clúster EMR
 
-#### 1.3.1 Master Node (Nodo Maestro)
-- Administra el cluster ejecutando componentes de software para coordinar la distribución de datos y tareas entre los otros nodos para el procesamiento
-- Realiza seguimiento del estado de las tareas y monitorea la salud del cluster
-- Todo cluster tiene un nodo maestro
-- Puedes crear un cluster de un solo nodo (solo master)
-- También se conoce como "leader node"
+Un clúster de EMR está compuesto por instancias EC2 (nodos), cada una con un rol específico:
 
-#### 1.3.2 Core Nodes (Nodos Core)
-- Nodos con componentes de software que ejecutan tareas y almacenan datos en el Hadoop Distributed File System (HDFS)
-- Los clusters multi-nodo tienen al menos un core node
+#### 1.3.1. Master Node (Nodo Maestro)
+El cerebro del clúster que administra y coordina todo el procesamiento.
 
-#### 1.3.3 Task Nodes (Nodos de Tarea)
-- Nodos con componentes de software que solo ejecutan tareas y no almacenan datos en HDFS
-- Son opcionales
-- Son un buen uso de instancias spot porque se pueden introducir y sacar del cluster según sea necesario
-- No impactan el almacenamiento del cluster ya que no se comunican con HDFS
-- No hay archivos permanentes almacenados en los task nodes que el cluster necesite, solo se utilizan para cómputo
+**Características principales**:
+- Coordina la distribución de datos y tareas
+- Monitorea el estado del clúster
+- Todo clúster tiene exactamente un nodo maestro
+- También conocido como "leader node"
+- Puede existir como un clúster de un solo nodo
 
-### 1.4 Tipos de Clusters EMR
+#### 1.3.2. Core Nodes (Nodos Core)
+Nodos que realizan el procesamiento y también almacenan datos.
 
-Hay un par de formas de utilizar un cluster EMR:
+**Características principales**:
+- Ejecutan tareas de procesamiento 
+- Almacenan datos en HDFS (sistema de archivos de Hadoop)
+- Todo clúster multi-nodo tiene al menos uno
+- Son fundamentales para el funcionamiento del clúster
+- Si fallan, pueden provocar pérdida de datos (aunque Hadoop los replica)
 
-#### 1.4.1 Cluster Transitorio (Transient)
-- Configurado para terminar automáticamente una vez completados todos los pasos definidos
-- Los pasos pueden incluir: cargar datos de entrada, procesar datos, almacenar resultados de salida y luego apagar el cluster
-- Puedes ahorrar dinero terminando automáticamente el cluster tan pronto como se complete la tarea
+#### 1.3.3. Task Nodes (Nodos de Tarea)
+Nodos dedicados exclusivamente al procesamiento.
 
-#### 1.4.2 Cluster de Larga Duración (Long Running)
-- Crear un cluster para interactuar directamente con las aplicaciones
-- Terminar manualmente cuando ya no lo necesites
-- Más apropiado para consultas ad hoc o experimentación con conjuntos de datos donde no sabes exactamente qué quieres hacer de antemano
+**Características principales**:
+- Solo ejecutan tareas, NO almacenan datos en HDFS
+- Son opcionales en el clúster
+- Pueden añadirse o quitarse sin afectar el almacenamiento
+- Ideales para usar con instancias spot de EC2
+- Aumentan la capacidad de procesamiento temporalmente
 
-Cuando lanzas un cluster, seleccionas los frameworks y aplicaciones a instalar para tus necesidades de procesamiento de datos. Una vez que tienes un cluster funcionando, puedes:
-- Conectarte directamente al nodo maestro a través de EC2 y ejecutar trabajos desde la terminal
-- Enviar pasos ordenados a través de la consola AWS
+### 1.4. Tipos de Clústeres EMR
 
-### 1.5 Integración de EMR con Servicios AWS
+EMR ofrece dos enfoques principales para utilizar sus clústeres:
 
-EMR se integra con varios servicios de AWS:
-- **EC2**: Para las instancias subyacentes que componen los nodos del cluster
-- **Amazon VPC**: Para tener tu cluster dentro de una red virtual
-- **Amazon S3**: Almacenamiento de datos de entrada y salida como alternativa a HDFS
-- **Amazon CloudWatch**: Monitoreo del rendimiento del cluster y configuración de alarmas
-- **IAM**: Configuración de permisos para el cluster
-- **CloudTrail**: Creación de registros de auditoría para las solicitudes realizadas
-- **AWS Data Pipeline**: Programación e inicio de clusters con pasos predefinidos
+#### 1.4.1. Transient Cluster (Clúster Transitorio)
+**Descripción**: Se termina automáticamente después de completar los pasos definidos.
 
-### 1.6 Almacenamiento en EMR
+**Flujo típico**:
+1. Cargar datos de entrada
+2. Procesar datos
+3. Almacenar resultados
+4. Terminar automáticamente
 
-#### 1.6.1 HDFS (Hadoop Distributed File System)
-- Solución de almacenamiento predeterminada en Hadoop
-- Sistema de archivos distribuido y escalable para Hadoop
-- Distribuye los datos almacenados en todas las instancias del cluster
-- Almacena múltiples copias de datos en diferentes instancias para evitar pérdidas si una instancia falla
-- Cada archivo en HDFS se almacena como bloques y se distribuye a través del cluster Hadoop
-- Por defecto, el tamaño de un bloque en HDFS es 128MB
-- Es almacenamiento efímero: cuando terminas el cluster, ese almacenamiento se pierde
-- Es más rápido porque no hay que ir a través de internet para acceder a los datos
-- Hadoop tiene inteligencia para optimizar el procesamiento, intentando que el código que procesa un dato se ejecute en el mismo nodo donde ese dato está almacenado
+**Ventaja principal**: Ahorro de costos al no mantener recursos inactivos.
 
-#### 1.6.2 EMR FS
-- Permite usar S3 como si fuera un sistema de archivos HDFS
-- Sigue siendo bastante rápido
-- Tiene una "vista consistente" opcional para la consistencia de S3
-- Puede usar DynamoDB para rastrear esa consistencia
+**Caso de uso**: Procesamiento periódico con pasos predefinidos.
 
-#### 1.6.3 Otras opciones
-- Sistema de archivos local para elementos efímeros (no distribuido, útil solo en el nodo maestro)
-- HDFS respaldado por Elastic Block Store (EBS)
+#### 1.4.2. Long Running Cluster (Clúster de Larga Duración)
+**Descripción**: Permanece activo hasta terminación manual.
 
-### 1.7 Aspectos operativos de EMR
+**Características**:
+- Permite interacción directa con aplicaciones
+- Requiere terminación manual cuando ya no se necesita
 
-- EMR cobra por hora más los cargos de EC2 subyacentes
-- Aprovisiona automáticamente nuevos nodos si un core node falla
-- Permite añadir y eliminar task nodes sobre la marcha
-- Permite usar instancias spot para añadir o eliminar capacidad sin impactar el almacenamiento subyacente
-- Permite redimensionar los core nodes en un cluster en ejecución
+**Casos de uso**:
+- Análisis exploratorio de datos
+- Consultas ad-hoc
+- Experimentación con transformaciones
 
-## 2. EMR Serverless
+### 1.5. Interacción con un Clúster EMR
 
-### 2.1 Introducción a EMR Serverless
+Al lanzar un clúster, se seleccionan los frameworks y aplicaciones según las necesidades. Después, se puede interactuar con él de tres formas principales:
 
-EMR Serverless funciona con la misma idea que EMR. La diferencia es que se elimina el paso intermedio de definir cuánta capacidad necesitamos, permitiendo que EMR decida por sí mismo automáticamente cuántos nodos necesita en el cluster para hacer lo que queremos.
+1. **Conexión directa**: Acceso SSH al nodo maestro para ejecutar comandos desde terminal
+2. **Envío de pasos**: Definir "steps" ordenados a través de la consola AWS
+3. **EMR Notebooks**: Interfaz interactiva similar a Jupyter para análisis visual
 
-Para usar EMR Serverless, comenzamos eligiendo nuestro EMR release y runtime (Spark, Hive o Presto), igual que haríamos normalmente. Luego, simplemente enviamos consultas y scripts a nuestra instancia EMR Serverless mediante job run requests.
+### 1.6. Integración de EMR con Servicios AWS
 
-En lugar de iniciar sesión directamente en tu nodo maestro, al ser serverless, interactúas con él indirectamente. Le proporcionas una ruta a algún archivo en S3 que indica dónde está tu script. Este script hará referencia a datos de S3, y tú simplemente envías ese script o consulta de Hive desde S3 a tu servidor serverless, y automáticamente, en teoría, calculará cuánta capacidad necesitas para ejecutar ese trabajo exitosamente.
+EMR se integra estrechamente con otros servicios AWS:
 
-### 2.2 Administración de capacidad
+| Servicio | Integración con EMR |
+|----------|---------------------|
+| **EC2** | Proporciona las instancias para los nodos |
+| **VPC** | Aloja el clúster en una red virtual privada |
+| **S3** | Almacena datos de entrada/salida de forma persistente |
+| **CloudWatch** | Monitorea rendimiento y configura alarmas |
+| **IAM** | Gestiona permisos y acceso al clúster |
+| **CloudTrail** | Crea pistas de auditoría para solicitudes |
+| **AWS Data Pipeline** | Programa y automatiza clústeres |
 
-EMR administrará la capacidad subyacente por ti. Pero si quieres pensar en la capacidad subyacente, todavía puedes hacerlo, lo cual puede ser una buena idea en muchas situaciones:
+### 1.7. Opciones de Almacenamiento en EMR
 
-- Si sabes que tu trabajo requiere pocos recursos, puedes especificarlo de antemano
-- Puedes especificar los tamaños de worker predeterminados de antemano
-- También puedes pre-inicializar tu capacidad
+EMR ofrece varias opciones de almacenamiento con diferentes características:
 
-En lugar de comenzar desde cero, puedes decirle a EMR Serverless cuál crees que será la capacidad base que necesitarás y comenzar desde ahí. Esto te ayudará; de lo contrario, intentará calcularlo automáticamente para ti.
+#### 1.7.1. HDFS (Hadoop Distributed File System)
+**Descripción**: Sistema de archivos distribuido predeterminado de Hadoop.
 
-Incluso si comienzas con una configuración base de capacidad pre-inicializada, analizará los recursos que realmente necesita tu trabajo y ajustará la capacidad en consecuencia, programando workers según los necesites y reprogramándolos cuando no los necesites.
+**Funcionamiento**:
+- Distribuye datos entre todos los nodos core
+- Almacena múltiples copias para redundancia
+- Divide archivos en bloques de 128MB por defecto
 
-Actualmente, todo funciona dentro de la misma región, a través de múltiples zonas de disponibilidad, por lo que tu cluster serverless estará dentro de una región.
+**Ventajas**:
+- Alto rendimiento (datos locales en los nodos)
+- Optimizado para localidad de datos
 
-### 2.3 Ventajas de EMR Serverless
+**Desventaja principal**: 
+- Almacenamiento efímero (los datos se pierden al terminar el clúster)
 
-¿Por qué es esto tan importante? Ya no tienes que averiguar cuántos workers necesitas. Un punto realmente problemático en tecnologías como Apache Spark es que si calculas muy poco, si no tienes suficientes recursos para un trabajo, terminarás quedándote sin memoria. Tu trabajo simplemente fallará a la mitad, y puede ser un proceso muy largo y costoso determinar cuánta capacidad realmente necesitas, porque no hay una buena manera de averiguarlo de antemano.
+#### 1.7.2. EMRFS (EMR File System)
+**Descripción**: Permite usar S3 como si fuera un sistema HDFS.
 
-EMR Serverless resuelve ese problema, lo cual es bastante impresionante. Aprovisionará automáticamente la capacidad que necesitas para tu trabajo, así que no tienes que preocuparte por ello, lo que es realmente importante. Puedes concentrarte en los scripts y en lo que estás tratando de hacer, en lugar de averiguar cuánta capacidad necesitas.
+**Características**:
+- Proporciona almacenamiento persistente
+- Ofrece buen rendimiento (aunque no tan rápido como HDFS)
+- Tiene vista consistente opcional (usa DynamoDB)
 
-Y como mencioné, no es realmente serverless como otros servicios serverless donde realmente no piensas en los servidores en absoluto. Bajo el capó, sigues usando Spark, Hive o Presto, y esas tecnologías asumen que tienes algún conocimiento de lo que está sucediendo a nivel de nodo worker o nivel de driver. Así que si aún quieres configurar Spark a ese nivel, todavía tendrás que pensar en los nodos worker y sus capacidades. La diferencia es que no necesariamente sabes cuántos tienes, y no necesariamente sabes dónde están.
+**Ventaja principal**: Los datos persisten después de terminar el clúster.
 
-### 2.4 Uso de EMR Serverless
+#### 1.7.3. Sistema de Archivos Local
+- Almacenamiento en nodos individuales
+- No distribuido y efímero
+- Útil para datos temporales o preparación en el nodo maestro
 
-Para usar EMR Serverless:
+#### 1.7.4. HDFS respaldado por EBS
+- Utiliza volúmenes EBS como almacenamiento para HDFS
+- Proporciona mayor durabilidad dentro del ciclo de vida del clúster
 
-1. Comienzas con un usuario IAM desde el cual interactuarás, que funcionará con AWS CLI
-2. Tu usuario invocará el CLI para crear este cluster serverless
-3. Actualmente solo se admite CLI (probablemente cambiarán esto pronto para incluir soporte de consola y SDK)
-4. Necesitas configurar un rol de ejecución de trabajo en IAM para el trabajo en sí:
-   - Asegura que tu trabajo tenga permiso para acceder a AWS EMR Serverless
-   - Proporciona permisos para acceder a tus scripts en S3
-   - Proporciona permisos para cualquier dato que necesite acceder en S3
-   - Si estás usando Spark SQL, puede necesitar acceso a Glue para metadatos
-   - Acceso a cualquier clave KMS que puedas necesitar para seguridad
+### 1.8. Consideraciones Operativas
 
-Con eso en mano, puedes crear una aplicación EMR Serverless usando Spark, Hive o lo que quieras, y luego simplemente enviarle tu trabajo a través de una solicitud de trabajo EMR.
+#### Modelo de costos
+- Facturación por hora de EMR más cargos de EC2
+- Importante optimizar duración y tamaño del clúster
 
-Ejemplo de un comando para invocar un trabajo EMR Serverless:
+#### Recuperación automática
+- EMR aprovisiona nuevos nodos si un core node falla
+- Proporciona resiliencia integrada
+
+#### Escalabilidad dinámica
+- Se pueden añadir/quitar task nodes en caliente
+- Posibilidad de usar instancias spot para capacidad adicional
+- Los core nodes también pueden redimensionarse en ejecución
+
+---
+
+## Resumen para el Examen
+
+### Amazon EMR - Conceptos Clave
+EMR es un servicio administrado para ejecutar frameworks de big data (Hadoop, Spark, etc.) en AWS. Es especialmente valioso para machine learning porque permite preparar grandes volúmenes de datos de forma distribuida antes de alimentarlos a algoritmos de ML.
+
+### Tipos de Nodos en EMR
+- **Master Node (obligatorio)**: Coordina el clúster, distribuye tareas y monitorea el estado
+- **Core Nodes**: Procesan datos Y almacenan datos en HDFS
+- **Task Nodes (opcionales)**: Solo procesan datos, no almacenan en HDFS, ideales para instancias spot
+
+### Tipos de Clústeres
+- **Transient**: Se terminan automáticamente tras completar los pasos definidos
+- **Long Running**: Permanecen activos hasta terminación manual
+
+### Opciones de Almacenamiento
+- **HDFS**: Rápido pero efímero (los datos desaparecen al terminar el clúster)
+- **EMRFS (S3)**: Persistente aunque algo más lento que HDFS
+- **Sistema local**: Para uso temporal en nodos individuales
+- **HDFS+EBS**: Mayor durabilidad durante la vida del clúster
+
+### Escalabilidad y Gestión
+- Task nodes pueden añadirse/quitarse sin afectar el almacenamiento
+- EMR reaprovisiona automáticamente core nodes que fallan
+- Posibilidad de redimensionar incluso los core nodes en ejecución
+
+**Consejo para el examen**: Entiende bien la diferencia entre los tres tipos de nodos, especialmente que los task nodes no almacenan datos, lo que los hace ideales para instancias spot. Recuerda las ventajas de EMRFS (persistencia) frente a HDFS (rendimiento) y cómo esto afecta a la arquitectura de procesamiento de datos para machine learning.
+
+
+## 2. EMR Serverless y EMR on EKS
+
+### 2.1. EMR Serverless
+
+#### 2.1.1. Concepto y diferenciación
+EMR Serverless funciona con la misma idea que EMR tradicional, pero elimina el paso intermedio de definir la capacidad necesaria. EMR Serverless determina automáticamente cuántos nodos necesita para ejecutar las tareas, ajustando los recursos según las necesidades reales.
+
+#### 2.1.2. Funcionamiento básico
+Para utilizar EMR Serverless:
+- Se elige el EMR release y runtime (Spark, Hive o Presto)
+- Se envían consultas y scripts mediante job run requests
+- No se interactúa directamente con un nodo maestro
+- Se proporciona la ruta a scripts en S3 que el servicio ejecutará
+- EMR gestiona automáticamente la capacidad subyacente
+
+#### 2.1.3. Configuración de capacidad
+Aunque EMR Serverless gestiona automáticamente los recursos, también permite:
+- Especificar tamaños de worker predeterminados 
+- Pre-inicializar la capacidad base
+- Establecer límites máximos de recursos
+
+Esta capacidad pre-inicializada ayuda a EMR a comenzar con recursos suficientes, pero el servicio sigue ajustando los trabajadores según sea necesario, programándolos y reprogramándolos dinámicamente.
+
+#### 2.1.4. Ventajas principales
+- **Eliminación de cálculos de capacidad**: No es necesario determinar cuántos workers se necesitan
+- **Prevención de fallos por recursos insuficientes**: Evita errores comunes como "out of memory"
+- **Enfoque en scripts y lógica**: Permite centrarse en el trabajo real en lugar de la infraestructura
+- **Provisión automática**: Asigna automáticamente la capacidad necesaria para cada trabajo
+
+#### 2.1.5. Limitaciones
+- No es completamente "serverless" en el sentido tradicional
+- Sigue utilizando tecnologías como Spark, Hive o Presto que requieren conocimiento de nodos
+- Aún se requiere configuración a nivel de worker y driver para optimizaciones
+- La diferencia es que no se necesita gestionar la cantidad o ubicación de los nodos
+
+### 2.2. Uso de EMR Serverless
+
+#### 2.2.1. Configuración inicial
+1. **IAM User**: Crear un usuario IAM que interactuará con el servicio a través de AWS CLI
+2. **Job Execution Role**: Configurar un rol de ejecución en IAM que proporcione permisos para:
+   - Acceso a EMR Serverless
+   - Scripts en S3
+   - Datos en S3
+   - AWS Glue (para metadatos si se usa Spark SQL)
+   - Claves KMS (si se necesitan)
+
+#### 2.2.2. Creación y ejecución de trabajos
+Actualmente, EMR Serverless solo se puede usar a través de la CLI (Interfaz de Línea de Comandos), aunque se espera que en el futuro tenga soporte para consola y SDK.
+
+**Ejemplo de comando para iniciar un trabajo**:
 ```
 aws emr-serverless start-job-run \
-  --application-id [ID de aplicación] \
-  --execution-role-arn [path al rol] \
+  --application-id <application-id> \
+  --execution-role-arn <role-arn> \
   --job-driver '{
     "sparkSubmit": {
-      "entryPoint": "[path al script]",
-      "entryPointArguments": ["[argumentos]"],
-      "sparkSubmitParameters": "--conf spark.executor.cores=1"
+      "entryPoint": "s3://bucket/script.py",
+      "entryPointArguments": ["s3://bucket/output/"],
+      "sparkSubmitParameters": "--conf spark.executor.cores=4 --conf spark.executor.memory=8g --conf spark.driver.cores=4 --conf spark.driver.memory=8g"
+    }
+  }' \
+  --configuration-overrides '{
+    "monitoringConfiguration": {
+      "s3MonitoringConfiguration": {
+        "logUri": "s3://bucket/logs/"
+      }
     }
   }'
 ```
 
-Aunque lo llamemos serverless, aún estamos pensando en el tamaño de nuestros cores de ejecutor, cuántos cores tiene el driver, etc. Todavía tienes ese nivel de control, incluso si estás dejando la capacidad real y la cantidad de nodos a EMR Serverless.
+Aunque es "serverless", se pueden especificar parámetros como:
+- Cores de ejecutor
+- Memoria de ejecutor
+- Cores de driver
+- Memoria de driver
 
-También puedes enviar anulaciones de configuración específicas para EMR Serverless. Por ejemplo, puedes especificar que quieres enviar tus logs de CloudWatch a una ruta específica en S3.
+#### 2.2.3. Ciclo de vida de una aplicación EMR Serverless
 
-Cuando termines, obtienes tu salida y tus logs donde dijiste que los pusieras, y eso es todo. Simplemente lo apagas cuando terminas, al igual que con EMR.
+1. **Creación**: Se crea la aplicación mediante un comando CLI
+   - Si tiene éxito: la aplicación queda creada
+   - Si falla: termina automáticamente
 
-### 2.5 Ciclo de vida de una aplicación EMR Serverless
+2. **Inicio**: Se emite un comando start para iniciar la aplicación
 
-El ciclo de vida de una aplicación EMR Serverless es el siguiente:
+3. **Ejecución**: La aplicación se ejecuta y puede:
+   - Tener éxito y pasar a fase de detención
+   - Fallar y pasar a fase de detención automáticamente
 
-1. **Creación**: Creas explícitamente tu aplicación a través de un comando (actualmente desde CLI)
-   - Si tiene éxito, has creado tu aplicación
-   - Si no, terminará automáticamente
+4. **Detención**: La aplicación se detiene y puede:
+   - Volver a iniciarse
+   - Terminarse definitivamente
 
-2. Una vez creada, tienes opciones:
-   - Terminarla inmediatamente (aunque no está claro por qué lo harías)
-   - Emitir un comando de inicio para iniciar tu aplicación
+5. **Terminación**: La aplicación se elimina completamente
 
-3. Una vez iniciada, puede:
-   - Tener éxito y luego pasar a la fase de detención cuando termines
-   - Fallar y pasar automáticamente a la fase de detención
+**Importante**: Estos pasos no ocurren automáticamente. Se deben invocar comandos a través de la API:
+- create-application
+- start-application
+- stop-application
+- delete-application
 
-4. Una vez detenida exitosamente, puedes:
-   - Ejecutarla nuevamente (volver a iniciar)
-   - Pasar a la fase de terminación y apagarla cuando hayas terminado
+**Nota de precaución**: A diferencia de lo que algunos podrían pensar, EMR Serverless no elimina la necesidad de gestionar recursos. Aunque ajusta automáticamente la capacidad, sigue siendo necesario eliminar explícitamente la aplicación cuando ya no se necesita para evitar cargos innecesarios.
 
-Es importante destacar que esto no sucede automáticamente. Necesitas llamar comandos a través de la API como create-application, start-application, stop-application y, cuando termines, delete-application para que todo esto suceda.
+### 2.3. Capacidad Pre-inicializada en EMR Serverless
 
-No deberías usar EMR Serverless solo para evitar tener que recordar apagar tu cluster. Aunque te ayuda a no usar más capacidad de la que necesitas, aún debes eliminar explícitamente tu aplicación cuando termines. Si olvidas hacerlo, seguirás siendo facturado por esa aplicación serverless, incluso si no está haciendo nada.
+EMR Serverless permite especificar una capacidad inicial para optimizar el rendimiento:
 
-No pienses que EMR Serverless es una excusa para descuidar la gestión de tus recursos. Todavía necesitas pensar en iniciar, detener y terminar explícitamente ese cluster cuando hayas terminado. EMR Serverless solo significa que está pensando en la capacidad en lugar de ti, pero aún necesitas administrar esa capacidad hasta cierto punto.
-
-### 2.6 Capacidad Pre-inicializada en EMR Serverless
-
-Ejemplo de una configuración de capacidad pre-inicializada desde la línea de comando:
-
+**Ejemplo de configuración**:
 ```
 --initial-capacity '{
-  "Driver": {
+  "driver": {
     "count": 5,
     "workerConfiguration": {
-      "cpu": "2vCPU",
-      "memory": "4GB"
+      "cpu": "4vCPU",
+      "memory": "8GB"
     }
   },
-  "Executor": {
+  "executor": {
     "count": 50,
     "workerConfiguration": {
       "cpu": "4vCPU",
       "memory": "8GB"
     }
   }
-}'
+}' \
 --maximum-capacity '{
   "cpu": "400vCPU",
-  "memory": "1TB"
+  "memory": "1024GB"
 }'
 ```
 
-Esto te permite decir cuántos procesos quieres para alimentar tu aplicación. Sigue siendo trabajo de EMR Serverless averiguar dónde se ejecutan esos procesos y la capacidad necesaria para hacerlo, pero puedes darle una pista para decir: "Sé que este es un trabajo bastante exigente, quiero comenzar con 50 ejecutores, averigua cómo hacer que eso suceda".
+Esta configuración:
+- Establece 5 drivers iniciales con 4 vCPUs y 8GB de memoria cada uno
+- Configura 50 executors iniciales con 4 vCPUs y 8GB de memoria cada uno
+- Limita el uso máximo a 400 vCPUs y 1TB de memoria total
 
-También puedes establecer una capacidad máxima como salvaguarda en caso de que hagas algo que quiera usar recursos infinitos, lo que te proporcionará una pequeña red de seguridad.
+**Punto importante para el examen**: Spark añade un 10% de overhead a cualquier memoria solicitada para drivers y executors. Asegúrate de que tu solicitud de capacidad inicial tenga en cuenta este overhead.
 
-**Nota importante de la documentación**: Spark agrega un 10% de overhead a cualquier memoria solicitada para drivers y executors. Asegúrate de que tu solicitud de capacidad inicial tenga esto en cuenta. Asegúrate de solicitar al menos un 10% más de memoria de la que tu trabajo está realmente solicitando.
+### 2.4. Seguridad en EMR Serverless
 
-### 2.7 Seguridad en EMR Serverless
+EMR Serverless mantiene las mismas características de seguridad que EMR tradicional:
 
-La seguridad con EMR Serverless es muy similar a la de EMR para almacenamiento:
+- **Almacenamiento**:
+  - Utiliza EMRFS (S3) con todas sus capacidades de seguridad
+  - Soporta cifrado del lado del servidor o cliente en S3 (at-rest)
+  - Utiliza TLS para comunicación entre nodos y S3 (in-transit)
 
-- **Para almacenamiento**: 
-  - Si estás usando EMR EFS (que es S3), tienes encriptación del lado del servidor o del cliente en S3 en reposo
-  - Para datos en tránsito, TLS estará disponible entre los nodos EMR y S3
-  - Si escribes directamente en S3, toda la seguridad que viene con S3 está disponible (S3, SSD, KMS)
-  - Cualquier almacenamiento efímero en los discos locales de tus nodos también está encriptado
+- **Almacenamiento efímero**:
+  - Los discos locales están cifrados
+  - La comunicación entre drivers y executors está cifrada automáticamente
 
-- **Para comunicación**:
-  - La comunicación entre los nodos driver y los executors está encriptada automáticamente
-  - Si estás usando Hive, la comunicación entre el metastore de Glue y EMR también está encriptada en tránsito usando TLS
+- **Integración con Hive**:
+  - La comunicación con AWS Glue Metastore está cifrada con TLS
 
-**Nota**: Si estás usando S3, puedes forzar HTTPS en el tráfico en tránsito a S3 usando la política AWS Secure Transport.
+**Nota adicional**: Si utilizas S3, puedes forzar HTTPS en el tráfico in-transit hacia S3 mediante la política AWS Secure Transport.
 
-### 2.8 EMR en EKS (Elastic Kubernetes Service)
+### 2.5. EMR on EKS (Elastic Kubernetes Service)
 
-Otro enfoque serverless para EMR es EMR en EKS (Elastic Kubernetes Service). Si tu mundo está construido alrededor de Kubernetes, esta es una forma de usar EMR y Spark en particular dentro de Amazon EKS.
+#### 2.5.1. Concepto y aplicación
+EMR on EKS es otra aproximación serverless que permite ejecutar EMR y especialmente Apache Spark en clústeres de Kubernetes, sin preocuparse por aprovisionar la infraestructura.
 
-Esto te permite enviar un trabajo de Spark en Elastic Kubernetes Service sin tener que preocuparte por aprovisionar los clusters para ello. Te da todos los beneficios de Kubernetes en lugar de tener solo un cluster EMR independiente, y también te da los beneficios de todos los aspectos completamente gestionados de EMR.
+#### 2.5.2. Ventajas principales
+- **Integración con ecosistema Kubernetes**: Ideal para organizaciones que ya utilizan Kubernetes
+- **Compartición de recursos**: Permite compartir recursos entre Spark y otras aplicaciones en el mismo clúster EKS
+- **Eficiencia de recursos**: Mayor eficiencia en la utilización de hardware
+- **Flexibilidad**: Posibilidad de ejecutar diferentes versiones de Spark junto con otras aplicaciones
 
-No tienes que lidiar con la configuración de tu propia aplicación Spark dentro de EKS. Esto automatiza todo por ti, proporcionando una solución completamente gestionada para Elastic MapReduce y Spark en particular sobre tu mundo ECS.
+#### 2.5.3. Funcionamiento
+1. Se selecciona la versión de Apache Spark deseada
+2. Se despliega la carga de trabajo de EMR en Amazon EKS
+3. EMR empaqueta automáticamente la carga de trabajo en un contenedor
+4. Proporciona conectores pre-construidos para integración con otros servicios AWS
+5. Despliega el contenedor en el clúster EKS
+6. Gestiona el escalado, logging y monitorización de la carga de trabajo
 
-La ventaja de hacer esto es que puedes compartir recursos entre Spark y otras aplicaciones que puedas tener ejecutándose en Kubernetes. Puedes tener aplicaciones de Spark como solo una de las muchas cosas que estás haciendo en ese cluster EKS. Puedes tener otras aplicaciones haciendo cosas totalmente diferentes, tal vez una aplicación de análisis, incluso puedes tener diferentes versiones de Spark ejecutándose junto con todo lo demás.
+#### 2.5.4. Arquitectura
+EMR on EKS opera a través de Amazon EKS, permitiendo que aplicaciones Spark coexistan con otras aplicaciones en el mismo clúster Kubernetes:
 
-A través de la magia de Kubernetes, podemos compartir esos recursos de manera más eficiente, lo que puede ser una mejor manera de aprovechar el hardware que tienes y, en última instancia, ahorrar dinero.
+- Múltiples aplicaciones pueden compartir el mismo clúster
+- Diferentes versiones de Spark pueden ejecutarse simultáneamente
+- Los recursos se distribuyen eficientemente a través de Kubernetes
+- El clúster puede extenderse a través de múltiples zonas de disponibilidad
+- Mantiene integración con otros servicios AWS
 
-También tiene todas estas integraciones con otros servicios de Amazon, distribuidos potencialmente entre múltiples zonas de disponibilidad. De nuevo, no tienes que preocuparte mucho por eso.
+---
 
-Con solo unos pocos clics en la consola, puedes elegir la versión de Apache Spark que deseas, implementar una carga de trabajo EMR en Amazon EKS. EMR empaquetará automáticamente esa carga de trabajo en un contenedor y proporcionará conectores preconstruidos para integrarse con estos otros servicios de AWS. EMR luego implementará el contenedor en el cluster EKS y administrará todo el escalado, registro y monitoreo de esa carga de trabajo por ti.
+## Resumen para el Examen
+
+### EMR Serverless
+- **Concepto clave**: EMR Serverless determina automáticamente la capacidad necesaria sin que el usuario especifique el número de nodos
+- **Funcionamiento**: Se selecciona el runtime (Spark, Hive, Presto) y se envían trabajos como job run requests a través de scripts almacenados en S3
+- **Ciclo de vida**: Requiere comandos explícitos para crear, iniciar, detener y eliminar aplicaciones (no es completamente automático)
+- **Capacidad**: Aunque es "serverless", permite pre-inicializar capacidad y establecer límites máximos
+- **Importante**: Spark añade un 10% de overhead a la memoria solicitada para drivers y executors
+- **Gestión de recursos**: Aún es necesario eliminar explícitamente las aplicaciones cuando no se necesitan para evitar cargos
+
+### EMR on EKS
+- **Concepto clave**: Ejecuta EMR (principalmente Spark) en clústeres Kubernetes sin gestionar la infraestructura
+- **Caso de uso**: Ideal para organizaciones que ya utilizan Kubernetes y quieren integrar Spark
+- **Ventaja principal**: Permite compartir recursos eficientemente entre Spark y otras aplicaciones
+- **Funcionamiento**: EMR empaqueta automáticamente la carga de trabajo en contenedores y los despliega en el clúster EKS
+
+**Consejo para el examen**: Presta especial atención a las diferencias entre EMR tradicional, EMR Serverless y EMR on EKS. Recuerda que aunque EMR Serverless gestiona automáticamente la capacidad, sigue siendo necesario gestionar el ciclo de vida completo de la aplicación mediante comandos explícitos. No olvides el 10% de overhead de memoria que Spark añade a los recursos solicitados para drivers y executors.
+
 
 ## 3. Apache Hadoop y Spark en EMR
 
-### 3.1 Hadoop: Componentes principales
+### 3.1. Componentes de Hadoop
 
-Hadoop consiste en varios módulos diferentes, y muchas de las herramientas en tu cluster EMR se basan en estos módulos. Cuando hablamos de Hadoop, generalmente nos referimos a:
+Hadoop es un framework fundamental en el ecosistema de procesamiento distribuido y constituye la base de EMR. Consta de varios módulos clave:
 
-- El sistema de archivos HDFS
-- Yarn
-- MapReduce
+#### 3.1.1. Hadoop Core (Hadoop Common)
+- Base de bibliotecas y utilidades necesarias para que funcionen los demás módulos
+- Proporciona archivos JAR, scripts de arranque y utilidades a nivel de sistema operativo
+- Permite a Hadoop funcionar independientemente del sistema operativo subyacente
 
-Subyacente a todos estos está algo llamado Hadoop Core o Hadoop Common, que son las bibliotecas y utilidades necesarias para que todos estos módulos funcionen. Proporciona el sistema de archivos y funcionalidades a nivel del sistema operativo que necesita para abstraerse del SO, así como todos los archivos Java y scripts necesarios para iniciar Hadoop.
+#### 3.1.2. HDFS (Hadoop Distributed File System)
+- Sistema de archivos distribuido y escalable para Hadoop
+- Distribuye los datos a través de las instancias del clúster
+- Almacena múltiples copias de datos en diferentes instancias para garantizar la tolerancia a fallos
+- Características principales:
+  - Almacenamiento efímero (se pierde al terminar el clúster)
+  - Útil para cachear resultados intermedios
+  - Eficiente para cargas de trabajo con E/S aleatoria significativa
 
-#### 3.1.1 HDFS (Hadoop Distributed File System)
-Es un sistema de archivos distribuido y escalable para Hadoop. Distribuye los datos que almacena a través de las instancias del cluster. Se almacenan múltiples copias de los datos en diferentes instancias para garantizar que no se pierdan datos si falla una instancia individual. Sin embargo, estos datos se pierden cuando se termina el cluster, pero es útil para almacenar en caché resultados intermedios durante el procesamiento MapReduce o para cargas de trabajo con E/S aleatoria significativa.
+#### 3.1.3. YARN (Yet Another Resource Negotiator)
+- Introducido en Hadoop 2.0
+- Administra centralmente los recursos del clúster 
+- Permite utilizar múltiples frameworks de procesamiento de datos (no solo MapReduce)
+- Facilita la integración con otras tecnologías como Spark
 
-#### 3.1.2 Hadoop YARN
-YARN significa "Yet Another Resource Negotiator". Es un componente introducido en Hadoop 2.0 para gestionar centralmente los recursos del cluster desde múltiples frameworks de procesamiento de datos. Esto nos permite utilizar otras herramientas además de MapReduce.
+#### 3.1.4. MapReduce
+- Framework para escribir aplicaciones que procesan grandes volúmenes de datos en paralelo
+- Basado en conceptos originados en Google para procesamiento de big data
+- Consta de dos tipos de funciones principales:
+  1. **Map Functions**: Transforman datos en pares clave-valor (resultados intermedios)
+     - Transforman, reformatean o extraen datos necesarios
+     - Relevantes para análisis exploratorio de datos
+  2. **Reduce Functions**: Combinan resultados intermedios y producen la salida final
+     - Agregan datos y los destilan a una respuesta final
 
-#### 3.1.3 MapReduce
-MapReduce es un framework de software para escribir fácilmente aplicaciones que procesan grandes cantidades de datos en paralelo en clusters grandes de hardware commodity de manera confiable y tolerante a fallos. Se remonta a algunas ideas de Google en sus primeros días de procesamiento de big data.
+### 3.2. Apache Spark: Alternativa Moderna a MapReduce
 
-MapReduce consta de funciones mapper y funciones reduce que escribes en código:
-- Una función map mapea datos a conjuntos de pares clave-valor, llamados resultados intermedios. Las funciones map generalmente transforman tus datos, los reformatean o extraen los datos que necesitas.
-- Las funciones reduce combinan esos resultados intermedios, aplican algoritmos adicionales y producen la salida final.
+#### 3.2.1. Visión General de Spark
+- Sistema de procesamiento distribuido de código abierto para cargas de trabajo de big data
+- Ha reemplazado en gran medida a MapReduce como la tecnología preferida
+- Puede instalarse opcionalmente en clústeres EMR
+- Utiliza caché en memoria y ejecución de consultas optimizada
 
-Generalmente, los mappers transforman y preparan tus datos, mientras que los reducers agregan esos datos y los destilan a una respuesta final.
+#### 3.2.2. Ventajas de Spark sobre MapReduce
+- Utiliza un Grafo Acíclico Dirigido (DAG) para optimizar el procesamiento
+- Es más inteligente al gestionar dependencias y programar tareas
+- Ofrece mayor velocidad gracias al procesamiento en memoria
+- Proporciona APIs para múltiples lenguajes: Java, Scala, Python y R
+- Permite reutilización de código entre diferentes tipos de cargas de trabajo
 
-### 3.2 Apache Spark en EMR
-
-En la actualidad, Apache Spark ha reemplazado en gran medida a MapReduce. Gracias a la existencia de YARN, Spark puede ejecutarse sobre tu cluster Hadoop y utilizar el negociador de recursos subyacente y el sistema de archivos que ofrece Hadoop, pero proporcionando una alternativa más rápida a MapReduce.
-
-Spark, que puede instalarse opcionalmente en tu cluster EMR, es un sistema de procesamiento distribuido de código abierto comúnmente utilizado para cargas de trabajo de big data. Utiliza caché en memoria y ejecución de consultas optimizada para consultas analíticas rápidas contra datos de cualquier tamaño.
-
-Spark utiliza algo llamado Directed Acyclic Graph (DAG), que es su principal truco para lograr velocidad. En comparación con MapReduce, puede ser más inteligente sobre las dependencias y el procesamiento, y cómo programarlos de manera más efectiva.
-
-Spark tiene APIs para Java, Scala, Python y R, y admite la reutilización de código en múltiples cargas de trabajo como:
-- Procesamiento por lotes
-- Consultas interactivas
-- Análisis en tiempo real
-- Machine learning
+#### 3.2.3. Casos de uso de Spark
+- Análisis interactivos
+- Procesamiento en tiempo real
+- Aprendizaje automático
 - Procesamiento de grafos
+- Consultas SQL 
 
-### 3.3 Funcionamiento interno de Spark
+**No recomendado para**:
+- OLTP (Procesamiento de Transacciones En Línea)
+- Trabajos tradicionales de procesamiento por lotes
 
-Las aplicaciones Spark se ejecutan como un conjunto independiente de procesos en un cluster, coordinados por el objeto SparkContext del programa principal. Esto se conoce como el programa driver, que es el código que escribes para hacer que tu trabajo Spark se ejecute.
+### 3.3. Arquitectura de Spark
 
-El SparkContext se conecta a diferentes cluster managers que asignan recursos a través de las aplicaciones (por ejemplo, YARN, o Spark tiene su propio cluster manager incorporado que puedes usar si no estás en un cluster Hadoop).
+#### 3.3.1. Componentes clave
+- **Driver Program**: Contiene el objeto SparkContext y define el código principal
+- **Cluster Managers**: Asignan recursos (Yarn, Mesos o el gestor propio de Spark)
+- **Executors**: Procesos que ejecutan los cálculos y almacenan datos en los nodos
 
-Al conectarse, Spark adquirirá executors en nodos del cluster. Los executors son procesos que ejecutan cálculos y almacenan datos para tus aplicaciones. El código de la aplicación se envía a los executors y, en el paso final, el SparkContext enviará tareas a los executors para ejecutarlas.
+#### 3.3.2. Flujo de trabajo
+1. Las aplicaciones Spark se ejecutan como procesos independientes en un clúster
+2. El SparkContext del programa principal coordina estos procesos
+3. SparkContext se conecta a los gestores de clúster para obtener recursos
+4. Spark adquiere executors en los nodos del clúster
+5. El código de la aplicación se envía a los executors
+6. SparkContext envía tareas a los executors para su ejecución
 
-### 3.4 Componentes de Spark
+### 3.4. Componentes Principales de Spark
 
-Spark tiene varios componentes diferentes, al igual que Hadoop:
+#### 3.4.1. Spark Core
+- Fundamento de la plataforma
+- Gestiona memoria, recuperación ante fallos, programación y distribución de tareas
+- Proporciona APIs para varios lenguajes
+- Implementa el concepto de RDD (Resilient Distributed Dataset):
+  - Colección lógica de datos particionados entre nodos
+  - Base de las operaciones distribuidas en Spark
 
-#### 3.4.1 Spark Core
-Es la base de la plataforma. Es responsable de:
-- Gestión de memoria
-- Recuperación ante fallos
-- Programación, distribución y monitoreo de trabajos
-- Interacción con sistemas de almacenamiento
+#### 3.4.2. Spark SQL
+- Motor de consultas distribuido que proporciona consultas interactivas
+- Hasta 100 veces más rápido que MapReduce
+- Características principales:
+  - Optimizador basado en costos
+  - Almacenamiento columnar
+  - Generación de código para consultas rápidas
+  - Compatibilidad con diversas fuentes de datos (JDBC, ODBC, JSON, HDFS, Hive, ORC, Parquet)
+  - Soporte para consultas a tablas Hive usando HiveQL
 
-Tiene APIs para Java, Scala, Python y R, y en el nivel más bajo utiliza algo llamado Resilient Distributed Dataset (RDD), que representa una colección lógica de datos particionados entre diferentes nodos de cómputo.
+- **Conceptos clave**:
+  - **DataFrame** (Python) / **DataSet** (Scala): Abstracción que reemplaza a los RDD
+  - Permite interactuar con datos de forma similar a pandas o tablas relacionales
+  - Posibilidad de ejecutar comandos SQL contra el clúster de Spark
 
-#### 3.4.2 Spark SQL
-Es un motor de consulta distribuido que proporciona consultas interactivas de baja latencia, hasta 100 veces más rápidas que MapReduce. Incluye:
-- Optimizador basado en costos
-- Almacenamiento columnar
-- Generación de código para consultas rápidas
+#### 3.4.3. Spark Streaming
+- Solución en tiempo real que aprovecha las capacidades de programación rápida de Spark Core
+- Ingiere datos en mini-lotes y realiza análisis en tiempo real
+- Permite aplicar el mismo código de análisis por lotes a procesamiento en tiempo real
+- Soporta ingesta desde:
+  - Twitter
+  - Kafka
+  - Flume
+  - HDFS
+  - ZeroMQ
+  - AWS Kinesis (integración específica)
 
-Soporta varias fuentes de datos como JDBC, ODBC, JSON, HDFS, Hive, archivos ORC o Parquet, y admite la consulta de tablas Hive usando HiveQL.
+#### 3.4.4. MLlib (Machine Learning Library)
+- Biblioteca de aprendizaje automático distribuido para Spark
+- Implementaciones de algoritmos diseñadas específicamente para entornos distribuidos
+- **Algoritmos disponibles**:
+  - **Clasificación**: Regresión logística, Naive Bayes
+  - **Regresión**: Árboles de decisión
+  - **Recomendación**: Alternating Least Squares (ALS)
+  - **Clustering**: K-means
+  - **Modelado de tópicos**: LDA (Latent Dirichlet Allocation)
+  - **Utilidades de flujo de trabajo**: Pipelines, transformación de características, persistencia
+  - **Álgebra lineal distribuida**: SVD, PCA
+  - **Funciones estadísticas**
 
-Lo más importante de Spark SQL es que expone algo llamado DataFrame en Python o Dataset en Scala, que está reemplazando los RDDs de nivel inferior en Spark. El código Spark moderno tiende a interactuar con datos de manera similar a como lo harías con un DataFrame en pandas o una tabla de base de datos relacional.
+- **Ventaja principal**: Estos algoritmos están implementados de forma que sean escalables y distribuibles, a diferencia de las implementaciones tradicionales (como scikit-learn) que no funcionan nativamente en clústeres.
 
-#### 3.4.3 Spark Streaming
-Es una solución en tiempo real que aprovecha las capacidades de programación rápida de Spark Core para realizar análisis de streaming. Los datos se ingieren en mini-lotes y se analizan dentro de la misma aplicación. El código escrito para análisis por lotes se puede aplicar a estos mini-lotes.
+#### 3.4.5. GraphX
+- Framework de procesamiento de grafos distribuido
+- Construido sobre Spark
+- Proporciona ETL y análisis exploratorio para estructuras de datos de grafos
+- Permite construir y transformar estructuras de grafos a gran escala
+- **Nota**: No se refiere a gráficos visuales, sino a estructuras de datos de grafos (como redes sociales)
 
-Spark Streaming admite ingesta desde Twitter, Kafka, Flume, HDFS y ZeroMQ, y también puede integrarse con AWS Kinesis.
+### 3.5. Características Avanzadas de Spark
 
-#### 3.4.4 MLlib (Machine Learning Library)
-Es la biblioteca de machine learning para Spark, relevante para el examen de machine learning. Ofrece varios algoritmos de machine learning implementados de manera distribuida y escalable.
+#### 3.5.1. Structured Streaming
+- En Spark Streaming, los datos entrantes se modelan como una tabla de base de datos sin límites
+- La tabla "crece" a medida que llegan nuevos datos en tiempo real
+- Se pueden realizar consultas usando ventanas de tiempo (por ejemplo, la última hora de datos)
+- **Integración con Kinesis**:
+  - Los productores de Kinesis publican datos a un stream de Kinesis
+  - Spark puede crear un DataFrame basado en ese stream
+  - Se puede consultar como cualquier otro conjunto de datos de Spark
 
-No todos los algoritmos de machine learning se prestan bien al procesamiento paralelo; muchos necesitan ser reimaginados para distribuir la carga en un cluster de computadoras. MLlib ofrece:
+#### 3.5.2. Zeppelin Notebooks
+- Entorno de notebook para Spark similar a Jupyter
+- Permite ejecutar código Spark interactivamente en un navegador
+- Funcionalidades principales:
+  - Ejecución de consultas SQL contra datos de Spark
+  - Visualización de resultados con bibliotecas como matplotlib y seaborn
+  - Experiencia similar a herramientas de ciencia de datos
+  - Facilita el preprocesamiento de datos en un formato familiar para científicos de datos
 
-- Para tareas de clasificación: regresión logística y Naive Bayes
-- Regresión a través de un cluster
-- Árboles de decisión
-- Motor de recomendación basado en Alternating Least Squares
-- Implementación de clustering K-means
-- LDA para modelado de tópicos
-- Utilidades de workflow para machine learning (pipelines, transformación de características, persistencia)
-- Implementaciones distribuidas de SVD, PCA y funciones estadísticas
+---
 
-La característica especial es que puede ejecutarse en un cluster, permitiendo procesar conjuntos de datos masivos y entrenar modelos de machine learning a través de un cluster completo.
+## Resumen para el Examen
 
-#### 3.4.5 GraphX
-Es un framework de procesamiento de grafos distribuido construido sobre Spark. No se trata de gráficos y diagramas como QuickSight, sino de grafos en el sentido de estructuras de datos en ciencias de la computación (por ejemplo, un grafo de personas en una red social).
+### Hadoop y sus Componentes
+- **Hadoop Core**: Bibliotecas y utilidades base
+- **HDFS**: Sistema de archivos distribuido (datos efímeros, múltiples copias)
+- **YARN**: Gestor de recursos (permite usar frameworks además de MapReduce)
+- **MapReduce**: Modelo de programación con funciones Map (transformación) y Reduce (agregación)
 
-Proporciona ETL, análisis exploratorio y computación iterativa de grafos para permitir a los usuarios construir y transformar interactivamente una estructura de datos de grafo a escala.
+### Apache Spark
+- **Concepto clave**: Framework de procesamiento distribuido que sustituye a MapReduce, más rápido gracias al procesamiento en memoria
+- **Arquitectura**: Driver Program (SparkContext) → Cluster Managers → Executors en los nodos
+- **Ventajas**: Uso de DAG para optimización, APIs para múltiples lenguajes, reutilización de código
 
-### 3.5 Spark Streaming en detalle
+### Componentes de Spark
+| Componente | Función | Características clave |
+|------------|---------|------------------------|
+| **Spark Core** | Base de la plataforma | RDDs, gestión de memoria, recuperación ante fallos |
+| **Spark SQL** | Motor de consultas | DataFrames/DataSets, consultas 100x más rápidas que MapReduce |
+| **Spark Streaming** | Análisis en tiempo real | Mini-lotes, integración con Kinesis, ventanas temporales |
+| **MLlib** | Machine Learning | Algoritmos distribuidos (clasificación, regresión, clustering) |
+| **GraphX** | Procesamiento de grafos | Análisis de estructuras de datos tipo grafo |
 
-En las aplicaciones Spark, generalmente se usa un Dataset en el código que hace referencia a tus datos, que se tratan como una tabla de base de datos. Con Spark Streaming, esa tabla sigue creciendo a medida que se reciben nuevos fragmentos de datos en tiempo real. Puedes consultar esos datos utilizando ventanas de tiempo (por ejemplo, mirar la última hora de datos en tu flujo de datos entrante).
+### MLlib - Algoritmos Disponibles
+- **Clasificación**: Regresión logística, Naive Bayes
+- **Regresión**: Árboles de decisión
+- **Recomendación**: ALS (Alternating Least Squares)
+- **Clustering**: K-means
+- **Modelado de tópicos**: LDA
+- **Álgebra lineal distribuida**: SVD, PCA
 
-El Structured Streaming en Spark modela los datos de streaming entrantes como una tabla de base de datos sin límites que puedes consultar cuando quieras. Spark Streaming se integra con Kinesis: puedes tener un productor Kinesis publicando datos en un Kinesis Data Stream, y hay una forma en el KCL de implementar un Dataset de Spark construido sobre ese flujo de datos.
+### Herramientas Adicionales
+- **Zeppelin**: Notebooks interactivos para Spark (similar a Jupyter)
 
-### 3.6 Apache Zeppelin
-
-Zeppelin es básicamente un notebook para Spark. Permite ejecutar código Spark de forma interactiva dentro de un entorno de notebook en un navegador. Puedes:
-- Ejecutar consultas SQL contra tus datos Spark usando Spark SQL
-- Consultar tus resultados y visualizarlos en gráficos usando herramientas como matplotlib y seaborn
-
-Hace que Spark se sienta más como una herramienta de ciencia de datos y permite preprocesar datos en un formato familiar para los científicos de datos.
+**Consejo para el examen**: Comprende bien la relación entre Hadoop y Spark. Recuerda que Spark funciona sobre YARN (componente de Hadoop) pero reemplaza a MapReduce como modelo de procesamiento. Presta especial atención a MLlib y los algoritmos específicos que ofrece, ya que son relevantes para el examen de Machine Learning. Entiende también cómo Spark Streaming modela los datos como una tabla sin límites que crece con el tiempo, lo que permite consultas en ventanas temporales.
 
 ## 4. Feature Engineering and the Curse of Dimensionality
 
-### 4.1 ¿Qué es Feature Engineering?
+### 4.1. Conceptos Fundamentales de Feature Engineering
 
-Feature Engineering es el proceso de aplicar lo que sabes sobre tus datos para seleccionar las features (características) que estás utilizando, crear nuevas features o transformar las features existentes. Las features son los atributos de tus datos de entrenamiento, los elementos con los que estás entrenando tu modelo.
+Feature Engineering (Ingeniería de Características) es el proceso de aplicar conocimiento sobre los datos para seleccionar, transformar o crear características que mejorarán el rendimiento de los modelos de machine learning.
 
-Por ejemplo, si estamos tratando de predecir cuánto dinero ganan las personas basándonos en varios atributos, las features podrían incluir:
-- La edad de una persona
-- Su altura
-- Su peso
-- Su dirección
-- Qué tipo de automóvil conducen
-- Y muchas otras características
+#### 4.1.1. ¿Qué son las características (features)?
+Las características son los atributos o variables de los datos de entrenamiento que se utilizan para entrenar un modelo. Por ejemplo, si estamos intentando predecir el ingreso de una persona, las características podrían incluir:
+- Edad
+- Altura
+- Peso
+- Dirección
+- Tipo de vehículo
+- Nivel educativo
 
-Algunas de estas features serán relevantes para lo que estás tratando de predecir, y otras no lo serán. El proceso de Feature Engineering consiste, en parte, en seleccionar qué features son importantes para lo que estás tratando de predecir y elegirlas sabiamente.
+Estos atributos son las "entradas" que el modelo utilizará para hacer predicciones.
 
-### 4.2 Componentes del Feature Engineering
+#### 4.1.2. Importancia del Feature Engineering
+El Feature Engineering representa la verdadera "arte" del machine learning por varias razones:
+- No se puede simplemente introducir todos los datos disponibles y esperar buenos resultados
+- Distingue a los buenos profesionales de ML de los menos experimentados
+- Se aprende principalmente a través de la experiencia y la práctica
+- Es un foco importante en el examen AWS Certified Machine Learning - Associate
 
-#### 4.2.1 Selección de Features
-Identificar y seleccionar las features que son más relevantes para tu problema de predicción.
+#### 4.1.3. Procesos clave en Feature Engineering
+Feature Engineering abarca varios procesos fundamentales:
 
-#### 4.2.2 Transformación de Features
-Muchas veces necesitas transformar las features de alguna manera:
-- Los datos sin procesar pueden no ser útiles para el modelo específico que estás utilizando
-- Puede ser necesario normalizar o escalar las features
-- Puede ser necesario codificarlas de alguna manera específica
+1. **Selección de características**: Identificar qué características son relevantes para la predicción que estamos intentando realizar
+   
+2. **Transformación de características**: Modificar características existentes para hacerlas más útiles para algoritmos específicos
+   - Normalización
+   - Escalado
+   - Codificación 
 
-#### 4.2.3 Manejo de Datos Faltantes
-En el mundo real, a menudo no se dispone de datos completos para cada punto de datos. La forma en que eliges manejar esto puede influir significativamente en la calidad del modelo resultante.
+3. **Manejo de datos faltantes**: Decidir cómo tratar información incompleta
+   - Eliminación
+   - Imputación (reemplazar con valores como la media, mediana, etc.)
+   - Predicción de valores faltantes
 
-#### 4.2.4 Creación de Nuevas Features
-A veces, quieres crear nuevas features a partir de las existentes:
-- Las tendencias numéricas pueden representarse mejor tomando el logaritmo o el cuadrado de una feature
-- Puede ser mejor combinar matemáticamente varias features en una para reducir la dimensionalidad
+4. **Creación de características**: Generar nuevas características a partir de las existentes
+   - Aplicar transformaciones matemáticas (logaritmos, cuadrados, etc.)
+   - Combinar características existentes
+   - Crear características basadas en conocimiento del dominio
 
-### 4.3 Importancia del Feature Engineering
+### 4.2. La Maldición de la Dimensionalidad
 
-No puedes simplemente tomar todos los datos que tienes, arrojarlos a un algoritmo de machine learning y esperar buenos resultados. El Feature Engineering es realmente el arte del machine learning. Es donde se aplica tu experiencia para obtener buenos resultados.
+#### 4.2.1. ¿Qué es la maldición de la dimensionalidad?
+La maldición de la dimensionalidad se refiere al conjunto de problemas que surgen cuando se trabaja con datos en espacios de alta dimensión (es decir, con muchas características).
 
-No es solo un proceso mecánico donde sigues unos pasos, tomas todos los datos, los introduces en un algoritmo y ves qué predicciones obtienes. Esto es lo que separa a los buenos practicantes de machine learning de los malos. Aquellos que pueden hacer Feature Engineering son los más exitosos y valiosos en el mercado laboral.
+#### 4.2.2. Problema de representación vectorial
+Cada instancia de datos puede representarse como un vector en un espacio multidimensional:
+- Con una característica (ej: edad): vector en una dimensión (línea)
+- Con dos características (ej: edad y altura): vector en dos dimensiones (plano)
+- Con tres características (ej: edad, altura e ingresos): vector en tres dimensiones (espacio)
+- Con más características: vector en espacios de mayor dimensión (difíciles de visualizar)
 
-Este conocimiento generalmente no se enseña formalmente, sino que se aprende a través de la experiencia y la práctica real de machine learning. Por eso el examen de certificación de AWS Machine Learning se centra mucho en este tema - está tratando de identificar a las personas que tienen experiencia real en este campo.
+#### 4.2.3. Consecuencias de la alta dimensionalidad
 
-### 4.4 La Maldición de la Dimensionalidad
+1. **Datos dispersos**: A medida que aumentan las dimensiones, el espacio disponible crece exponencialmente, haciendo que los datos se vuelvan más "dispersos"
 
-La maldición de la dimensionalidad explica por qué el Feature Engineering es tan importante. No puedes simplemente utilizar todas las features disponibles y esperar buenos resultados. Tener demasiadas features puede ser problemático por varias razones:
+2. **Dificultad para encontrar soluciones óptimas**: En espacios más grandes, resulta mucho más difícil ubicar la solución óptima
 
-#### 4.4.1 Datos Dispersos
-Considerando el ejemplo anterior de entrenar un modelo con atributos de personas, podríamos generar cientos de atributos diferentes. Cada persona se puede visualizar como un vector en el espacio dimensional de todas estas features:
-- Con una sola feature (por ejemplo, edad), representamos a una persona como un vector a lo largo de un solo eje
-- Con dos features (por ejemplo, edad y altura), tenemos un vector bidimensional
-- Con tres features (edad, altura, ingresos), tenemos un vector tridimensional
+3. **Problemas de rendimiento**: Los modelos con muchas características pueden volverse:
+   - Computacionalmente costosos
+   - Difíciles de entrenar (convergencia lenta)
+   - Propensos al sobreajuste
 
-A medida que agregamos más dimensiones, el espacio disponible para trabajar explota exponencialmente. Esto es la maldición de la dimensionalidad.
+4. **Mayor complejidad de modelos**: Por ejemplo, una red neuronal tendría que ser extremadamente amplia y profunda para manejar todas las relaciones entre numerosas características
 
-Cuantas más features tengas, mayor será el espacio en el que debemos encontrar una solución, lo que dificulta encontrar la solución óptima. Cuantas más features tengas, más dispersos serán tus datos dentro de ese espacio de solución, y más difícil será encontrar la mejor solución.
+### 4.3. Técnicas para Reducción de Dimensionalidad
 
-#### 4.4.2 Problemas de Rendimiento
-Desde una perspectiva de rendimiento, imagina tratar de crear una red neuronal con entradas para cada una de estas features. Esta red tendría que ser masiva, extremadamente ancha en la base y probablemente extremadamente profunda, para encontrar todas las relaciones entre estas numerosas features. Sería increíblemente difícil hacer que converja.
+Para combatir la maldición de la dimensionalidad, existen métodos que permiten reducir el número de características mientras se preserva la información esencial:
 
-### 4.5 Técnicas para la Reducción de Dimensionalidad
+#### 4.3.1. Métodos basados en conocimiento del dominio
+- Selección manual de características importantes
+- Eliminación de características redundantes o irrelevantes
+- Creación de características compuestas basadas en experiencia
 
-No siempre tienes que adivinar qué features son importantes. Existen formas más sistemáticas de reducir la dimensionalidad:
+#### 4.3.2. Principal Component Analysis (PCA)
+- Técnica no supervisada que reduce dimensionalidad
+- Transforma las características originales en un conjunto más pequeño de componentes principales
+- Cada componente principal captura la máxima variabilidad posible
+- Las nuevas características (componentes) no son interpretables directamente como las originales
+- Útil cuando se tienen muchas características potencialmente correlacionadas
 
-#### 4.5.1 Principal Component Analysis (PCA)
-PCA es una forma de tomar todas las dimensiones superiores (todas las diferentes features) y destilarlas en un número menor de features o dimensiones. Intenta hacer esto de una manera que preserva la información lo mejor posible.
+#### 4.3.3. K-means Clustering
+- Puede utilizarse para agrupar características similares
+- Permite identificar patrones subyacentes en los datos
+- Ayuda a crear representaciones más compactas de los datos
 
-Las features resultantes no son necesariamente etiquetables; son features creadas artificialmente que capturan la esencia de las features originales.
+#### 4.3.4. Enfoque iterativo
+En la práctica, el feature engineering suele ser un proceso iterativo:
+1. Seleccionar un conjunto inicial de características
+2. Entrenar el modelo
+3. Evaluar el rendimiento
+4. Modificar las características (añadir, eliminar, transformar)
+5. Repetir hasta lograr un rendimiento satisfactorio
 
-#### 4.5.2 K-means Clustering
-K-means clustering es otra técnica para reducción de dimensionalidad.
+### 4.4. Consideraciones Prácticas
 
-Ambas técnicas (PCA y K-means) son métodos no supervisados, lo que significa que no necesitas entrenarlos con datos etiquetados. Simplemente puedes introducir los datos de features en estos algoritmos, y producirán un conjunto más pequeño de dimensiones que funcionarán casi tan bien como el conjunto original.
+#### 4.4.1. Balance entre exhaustividad y dimensionalidad
+Es necesario encontrar un equilibrio entre:
+- Incluir suficiente información para que el modelo sea preciso
+- Evitar demasiadas características que puedan perjudicar el rendimiento
 
-### 4.6 Conclusión
+#### 4.4.2. Importancia del conocimiento del dominio
+El conocimiento específico sobre el problema que se está tratando es fundamental para:
+- Identificar qué características son potencialmente relevantes
+- Transformar características de manera que tengan más sentido para el problema
+- Crear nuevas características que capturen relaciones importantes
 
-Más features no siempre es mejor debido a la maldición de la dimensionalidad. El Feature Engineering es crucial para seleccionar las features más relevantes, transformarlas adecuadamente y, en última instancia, construir modelos de machine learning más efectivos y eficientes.
+#### 4.4.3. Experimentación y validación
+- Probar diferentes conjuntos de características y transformaciones
+- Utilizar validación cruzada para evaluar el impacto de los cambios
+- Medir objetivamente qué enfoques producen mejores resultados
+
+---
+
+## Resumen para el Examen
+
+### Feature Engineering - Conceptos Clave
+- **Definición**: Proceso de seleccionar, transformar y crear características para mejorar modelos de ML
+- **Importancia**: Elemento crítico que distingue a los buenos profesionales de ML; foco importante en el examen
+- **Procesos fundamentales**:
+  - Selección de características relevantes
+  - Transformación de datos (normalización, escalado)
+  - Manejo de datos faltantes
+  - Creación de nuevas características
+
+### La Maldición de la Dimensionalidad
+- **Concepto**: Problemas que surgen al trabajar con datos de alta dimensionalidad
+- **Consecuencias**:
+  - Datos más dispersos en espacios más grandes
+  - Mayor dificultad para encontrar soluciones óptimas
+  - Rendimiento computacional reducido
+  - Modelos más complejos y difíciles de entrenar
+
+### Técnicas de Reducción
+- **Basadas en conocimiento**: Selección manual de características importantes
+- **PCA**: Transforma características originales en componentes principales que maximizan varianza
+- **K-means**: Agrupa características similares para crear representaciones más compactas
+- **Proceso iterativo**: Seleccionar → Entrenar → Evaluar → Modificar → Repetir
+
+**Consejo para el examen**: El Feature Engineering es un tema que puede aparecer tanto en preguntas teóricas como en escenarios prácticos del examen. Comprende bien por qué "más características" no siempre significa "mejor modelo" debido a la maldición de la dimensionalidad. Recuerda que las técnicas de reducción como PCA y K-means son especialmente útiles cuando los datos tienen muchas dimensiones, pero que el conocimiento del dominio es igualmente importante para seleccionar las características relevantes. Familiarízate con las diferentes formas de manejar datos faltantes, ya que este es un problema común en conjuntos de datos del mundo real.
+
 
 ## 5. Imputing Missing Data
 
-### 5.1 El problema de los datos faltantes
+En el mundo real, los conjuntos de datos rara vez están completos. Para cada observación suele haber algunos valores faltantes, lo que plantea un desafío significativo en machine learning. La imputación de datos faltantes es un componente crucial del feature engineering.
 
-Una parte importante del Feature Engineering es la imputación de datos faltantes. En el mundo real, es común que para cada observación haya algunos puntos de datos faltantes. Existen diferentes técnicas para manejar este problema.
+### 5.1. Técnicas Básicas de Imputación
 
-### 5.2 Mean Replacement (Reemplazo por la media)
+#### 5.1.1. Mean Replacement (Sustitución por la Media)
 
-Una solución simple es el reemplazo por la media:
-- Si falta un atributo o feature en una fila de tus datos, se reemplaza con la media de toda la columna
-- Es importante tomar la media de todas las observaciones de esa misma feature (columna), no de la fila
+Este método sustituye los valores faltantes con la media de todos los valores existentes para esa característica (columna).
+
+**Proceso**:
+- Calcular la media de todos los valores no faltantes en la columna
+- Sustituir cada valor faltante con esa media
 
 **Ventajas**:
-- Rápido y fácil de implementar
-- No afecta la media ni el tamaño de la muestra de tu conjunto de datos
+- Rápido y sencillo de implementar
+- No afecta la media general del conjunto de datos
+- Preserva el tamaño de la muestra
+
+**Desventajas**:
+- No considera relaciones entre características
+- Sensible a valores atípicos (outliers)
+- No aplicable a datos categóricos
+- Generalmente produce resultados menos precisos que métodos más avanzados
+
+**Consideración importante**: Si hay muchos outliers, usar la mediana en lugar de la media puede ser más apropiado, ya que la mediana es menos sensible a valores extremos.
+
+#### 5.1.2. Dropping Missing Data (Eliminación de Datos Faltantes)
+
+Esta técnica simplemente elimina las filas (observaciones) que contienen valores faltantes.
+
+**Ventajas**:
+- Extremadamente simple (puede hacerse con una línea de código)
+- Rápido de implementar
+
+**Desventajas**:
+- Reduce el tamaño de la muestra
+- Puede introducir sesgo si los datos faltantes tienen algún patrón
+- Puede eliminar información valiosa
+- No recomendado si hay muchos datos faltantes
+
+**Ejemplo de sesgo potencial**: Si personas con ingresos muy altos o muy bajos tienden a no reportar sus ingresos, eliminar estas filas alteraría la distribución de ingresos en el conjunto de datos.
+
+#### 5.1.3. Sustitución por Categoría Más Frecuente
+
+Para datos categóricos, una alternativa a la media es usar el valor (categoría) más frecuente.
+
+**Proceso**:
+- Identificar la categoría que aparece con mayor frecuencia en la columna
+- Sustituir los valores faltantes con esta categoría
+
+**Ventajas y desventajas**: Similares a la sustitución por la media, pero aplicable a datos categóricos.
+
+#### 5.1.4. Sustitución por Campo Similar
+
+En algunos casos, puede ser apropiado usar un campo relacionado para sustituir valores faltantes.
+
+**Ejemplo**: En un conjunto de datos de reseñas de películas, si falta el texto completo de la reseña pero existe un resumen, se podría usar el resumen para sustituir el texto completo.
+
+### 5.2. Técnicas Avanzadas de Imputación
+
+#### 5.2.1. K-Nearest Neighbors (KNN)
+
+KNN es un método que aprovecha las relaciones entre características para imputar valores faltantes.
+
+**Proceso**:
+- Identificar las K observaciones más similares (vecinos más cercanos) a la observación con datos faltantes
+- Promediar los valores de esa característica de los K vecinos más cercanos
+- Usar ese promedio para sustituir el valor faltante
+
+**Ventajas**:
+- Considera relaciones entre características
+- Generalmente más preciso que métodos simples como la media
+- Funciona bien para datos numéricos
+
+**Desventajas**:
+- Computacionalmente más costoso
+- Requiere definir una métrica de distancia apropiada
+- Menos efectivo para datos categóricos
+- Necesita normalización de datos para funcionar correctamente
+
+#### 5.2.2. Deep Learning para Imputación
+
+Los modelos de deep learning (aprendizaje profundo) pueden ser particularmente efectivos para imputar datos categóricos.
+
+**Proceso**:
+- Entrenar una red neuronal para predecir los valores faltantes basándose en las demás características
+- Utilizar este modelo para predecir e imputar valores faltantes
+
+**Ventajas**:
+- Extremadamente preciso, especialmente para datos categóricos
+- Puede capturar relaciones complejas y no lineales entre características
+
+**Desventajas**:
+- Alta complejidad de implementación
+- Requiere considerable poder computacional
+- Necesita ajuste fino de hiperparámetros
+
+#### 5.2.3. Multiple Regression (Regresión Múltiple)
+
+Este enfoque utiliza técnicas de regresión para predecir valores faltantes basándose en otras características.
+
+**Proceso**:
+- Identificar relaciones entre la característica con valores faltantes y otras características
+- Construir un modelo de regresión usando estas relaciones
+- Predecir los valores faltantes utilizando el modelo
+
+**Ventajas**:
+- Puede capturar relaciones lineales y no lineales
+- Generalmente más preciso que métodos básicos
+- Menos complejo que deep learning
+
+**Desventajas**:
+- Asume relaciones específicas entre variables
+- Puede ser sensible a outliers
+- Menos efectivo si hay poca correlación entre características
+
+#### 5.2.4. MICE (Multiple Imputation by Chained Equations)
+
+MICE es considerado el estado del arte en técnicas de imputación.
+
+**Proceso**:
+- Imputar inicialmente los valores faltantes usando un método simple (como la media)
+- Para cada característica con valores faltantes:
+  - Marcar los valores imputados previamente
+  - Entrenar un modelo de regresión usando otras características
+  - Reemplazar los valores imputados con predicciones de este modelo
+- Repetir este proceso varias veces para refinar las imputaciones
+
+**Ventajas**:
+- Alta precisión
+- Considera las relaciones entre todas las características
+- Maneja bien tanto datos numéricos como categóricos
+
+**Desventajas**:
+- Computacionalmente intensivo
+- Complejo de implementar
+- Puede ser lento para conjuntos de datos grandes
+
+### 5.3. Consideraciones Prácticas
+
+#### 5.3.1. Evitar el Sesgo
+Antes de aplicar cualquier técnica de imputación, es importante analizar si hay patrones en los datos faltantes que podrían sesgar los resultados.
+
+**Preguntas clave**:
+- ¿Hay alguna relación entre valores faltantes y otras características?
+- ¿Hay algún grupo demográfico o categoría que tiende a tener más datos faltantes?
+- ¿Los datos faltantes son aleatorios o siguen algún patrón?
+
+#### 5.3.2. Método Óptimo: Obtener Más Datos
+En última instancia, la mejor solución para el problema de datos faltantes es obtener más datos completos y de mejor calidad.
 
 **Consideraciones**:
-- Si hay muchos valores atípicos (outliers) en tu conjunto de datos, la mediana puede ser una mejor opción que la media
-- Por ejemplo, en un conjunto de datos sobre ingresos, la media podría estar sesgada por millonarios o billonarios
+- Mejorar procesos de recolección de datos
+- Identificar y corregir fuentes de datos incompletos
+- Diseñar sistemas que minimicen la posibilidad de datos faltantes
 
-### 5.3 Limitaciones del reemplazo por la media
+#### 5.3.3. Elección del Método de Imputación
+La elección del método de imputación depende de varios factores:
+- Tipo de datos (numéricos vs. categóricos)
+- Cantidad de datos faltantes
+- Relaciones entre características
+- Recursos computacionales disponibles
+- Tiempo disponible para la implementación
 
-A pesar de su simplicidad, el reemplazo por la media no es generalmente la mejor opción:
+---
 
-- Solo funciona a nivel de columna, ignorando correlaciones entre features
-  - Por ejemplo, si existe una relación entre edad e ingresos, esta relación se perdería
-  - Podrías terminar imputando que un niño de 10 años gana $50,000 al año
+## Resumen para el Examen
 
-- No funciona con features categóricas
-  - No tiene sentido calcular la media de datos categóricos
-  - Para datos categóricos, podrías usar el valor más frecuente, pero es un enfoque diferente
+### Métodos de Imputación de Datos Faltantes
 
-- En general, no es un método muy preciso para la imputación
+| Método | Descripción | Pros | Contras | Mejor para |
+|--------|-------------|------|---------|------------|
+| **Mean Replacement** | Sustituye valores faltantes con la media de la columna | Simple, rápido, preserva la media | No considera relaciones, sensible a outliers | Aproximación rápida inicial |
+| **Median Replacement** | Sustituye con la mediana | Menos sensible a outliers que la media | Similar a mean replacement | Datos con outliers |
+| **Dropping Data** | Elimina filas con valores faltantes | Extremadamente simple | Reduce muestra, puede introducir sesgo | Pocos datos faltantes |
+| **KNN** | Usa valores de observaciones similares | Considera relaciones entre características | Costoso computacionalmente | Datos numéricos |
+| **Deep Learning** | Predice valores con redes neuronales | Muy preciso, maneja relaciones complejas | Complejo, computacionalmente intensivo | Datos categóricos |
+| **Multiple Regression** | Usa regresión para predecir valores | Captura relaciones entre variables | Asume relaciones específicas | Datos con correlaciones claras |
+| **MICE** | Método iterativo de imputación encadenada | Estado del arte, alta precisión | Complejo, computacionalmente intensivo | Soluciones robustas |
 
-### 5.4 Eliminación de filas con datos faltantes
+### Puntos Clave a Recordar
+- La imputación de datos es un componente crítico del feature engineering
+- Los métodos simples (media, mediana) son rápidos pero generalmente menos precisos
+- Dropping data puede introducir sesgo si los datos faltantes siguen patrones
+- KNN funciona bien para datos numéricos, capturando relaciones entre características
+- Deep Learning es especialmente efectivo para datos categóricos
+- MICE es considerado el estado del arte en imputación
+- La mejor solución es obtener más datos completos y de calidad cuando sea posible
 
-Otra opción simple es eliminar las filas que tienen datos faltantes:
+**Consejo para el examen**: Para preguntas sobre el "mejor" método de imputación, los métodos avanzados como MICE o Deep Learning suelen ser las respuestas correctas en términos de precisión, mientras que Mean Replacement o Dropping Data rara vez serán la mejor opción, aunque sean las más simples de implementar. Recuerda que el método óptimo depende del contexto, pero en general, cualquier método que considere las relaciones entre características será superior a los métodos que tratan cada característica aisladamente.
 
-- Puede ser razonable si tienes suficientes datos y eliminar algunas filas no afecta significativamente
-- Sin embargo, debes asegurarte de que eliminar las filas con datos faltantes no sesgue tu conjunto de datos
-
-**Ejemplo de posible sesgo**:
-- Si estás analizando ingresos, es posible que las personas con ingresos muy altos o muy bajos sean más propensas a no reportarlos
-- Al eliminar estas observaciones, podrías estar eliminando datos importantes para tu modelo
-
-### 5.5 Técnicas avanzadas de imputación
-
-#### 5.5.1 K-Nearest Neighbors (KNN)
-- Encuentra las K filas más similares a la que tiene datos faltantes
-- Promedia los valores de esas filas similares para imputar el valor faltante
-- Aprovecha las relaciones entre otras features del conjunto de datos
-- Funciona mejor con datos numéricos que con datos categóricos
-
-#### 5.5.2 Deep Learning (Aprendizaje profundo)
-- Especialmente útil para datos categóricos
-- Desarrolla un modelo de machine learning específicamente para imputar datos
-- Aunque es complejo y requiere mucho código y ajuste, puede proporcionar resultados excelentes
-
-#### 5.5.3 Regresión múltiple
-- Utiliza regresión sobre las otras features del conjunto de datos
-- Puede encontrar relaciones lineales o no lineales entre la feature faltante y otras features
-
-#### 5.5.4 MICE (Multiple Imputation by Chained Equations)
-- Una técnica avanzada considerada el estado del arte para la imputación de datos faltantes
-- Utiliza ecuaciones encadenadas para imputar valores múltiples
-
-### 5.6 La mejor solución: obtener más datos
-
-Finalmente, la mejor manera de lidiar con datos faltantes es simplemente obtener más datos:
-- Esforzarse por conseguir datos más completos
-- Asegurarse de que la calidad de los datos sea alta desde el principio
-- Aunque las técnicas de imputación son útiles, es difícil superar la calidad de los datos reales
-
-Cuanto mejor sea la calidad de los datos que ingresas en tu sistema, mejores serán los resultados que obtendrás. La imputación es una forma de compensar cuando no tienes suficientes datos y no puedes obtener más, pero siempre es preferible conseguir datos más completos y de mejor calidad cuando sea posible.
 
 ## 6. Dealing with Unbalanced Data
 
-### 6.1 El problema de los datos desbalanceados
+### 6.1. Comprendiendo los Datos No Balanceados
 
-Datos desbalanceados se refiere a cuando existe una gran discrepancia entre los casos positivos y negativos en nuestros datos de entrenamiento. Un ejemplo común es en la detección de fraude, donde el fraude real es bastante raro, por lo que la mayoría de los datos de entrenamiento contendrán filas que no son fraudulentas.
+#### 6.1.1. Definición
+Los datos no balanceados (unbalanced data) ocurren cuando existe una gran disparidad entre el número de casos positivos y negativos en un conjunto de datos de entrenamiento. Este es un problema común en situaciones donde lo que intentamos detectar es un evento raro o poco frecuente.
 
-Esto puede dificultar la construcción de un modelo que pueda identificar el fraude, ya que tiene muy pocos puntos de datos para aprender en comparación con todos los puntos de datos que no son fraude. Es muy fácil que un modelo simplemente diga: "dado que el fraude solo ocurre el 0.01% del tiempo, voy a predecir que no es fraude todo el tiempo", logrando una precisión aparentemente alta pero sin valor real.
+#### 6.1.2. Ejemplo típico: Detección de fraude
+En detección de fraude, las transacciones fraudulentas suelen representar un porcentaje muy pequeño del total (quizás 0.01%). Esto significa que por cada caso fraudulento, puede haber miles de casos legítimos.
 
-**Aclaración importante**: En este contexto, "positivo" y "negativo" no se refieren a resultados buenos o malos. "Positivo" simplemente significa "la condición que estamos tratando de detectar". Si nuestro modelo está tratando de detectar fraude, entonces el fraude es el caso positivo, aunque el fraude sea algo negativo.
+#### 6.1.3. El problema con los datos no balanceados
+Cuando un modelo de machine learning se entrena con datos extremadamente no balanceados, puede:
+- Favorecer la clase mayoritaria, simplemente porque tiene más ejemplos para aprender
+- Desarrollar un sesgo hacia predecir siempre la clase mayoritaria
+- Aparentar tener alta precisión general, cuando en realidad está fallando en detectar la clase minoritaria
 
-Este problema es principalmente relevante con redes neuronales.
+**Ejemplo**: Un modelo que siempre predice "no fraude" tendría un 99.99% de precisión en un conjunto de datos donde solo el 0.01% de las transacciones son fraudulentas, pero sería completamente inútil para detectar fraudes.
 
-### 6.2 Técnicas para manejar datos desbalanceados
+#### 6.1.4. Aclaración terminológica
+En machine learning, los términos "positivo" y "negativo" no implican juicios de valor:
+- **Positivo**: Se refiere al caso que estamos tratando de detectar (por ejemplo, fraude)
+- **Negativo**: Se refiere a la ausencia del caso que estamos detectando (por ejemplo, no fraude)
 
-#### 6.2.1 Oversampling (Sobremuestreo)
-Una solución simple es el sobremuestreo. Consiste en tomar muestras de tu clase minoritaria (en el ejemplo del fraude, los casos de fraude) y copiarlas varias veces. Aunque parezca que esto no debería ayudar, en realidad funciona con redes neuronales.
+Así, aunque el fraude es algo negativo en términos de valor, en el contexto de machine learning sería el "caso positivo" si es lo que tratamos de detectar.
 
-#### 6.2.2 Undersampling (Submuestreo)
-En lugar de crear más casos de tu clase minoritaria, puedes eliminar casos de la mayoría. En el caso del fraude, estaríamos hablando de eliminar algunos de esos casos no fraudulentos para equilibrar un poco más el conjunto de datos.
+### 6.2. Técnicas para Manejar Datos No Balanceados
 
-Sin embargo, desechar datos no suele ser la respuesta correcta, ya que estás descartando información. El submuestreo solo tiene sentido si estás tratando específicamente de evitar algún problema de escalado con tu entrenamiento, por ejemplo, si tienes más datos de los que puedes manejar con el hardware disponible.
+#### 6.2.1. Oversampling (Sobremuestreo)
+Consiste en aumentar artificialmente el número de casos de la clase minoritaria.
 
-#### 6.2.3 SMOTE (Synthetic Minority Oversampling Technique)
-Una técnica mejor que el sobremuestreo o submuestreo es SMOTE, que genera artificialmente nuevas muestras de la clase minoritaria utilizando vecinos más cercanos.
+**Método simple de oversampling**:
+- Duplicar aleatoriamente ejemplos de la clase minoritaria
+- Crear múltiples copias de estos ejemplos hasta alcanzar un mejor balance
 
-Al igual que el uso de KNN para imputación, SMOTE ejecuta K-Nearest Neighbors en cada muestra de la clase minoritaria y luego crea nuevas muestras a partir de esos resultados KNN tomando la media de esos vecinos. En lugar de simplemente hacer copias ingenuas de otros casos de prueba para la clase minoritaria, estamos fabricando nuevos puntos basados en promedios de otras muestras.
+**Ventajas**:
+- Simple de implementar
+- No se pierde información
+- Funciona sorprendentemente bien, especialmente con redes neuronales
 
-SMOTE tanto genera nuevas muestras como realiza un submuestreo de la clase mayoritaria, lo que lo hace mejor que el simple sobremuestreo mediante copias, ya que está fabricando nuevos puntos de datos que todavía tienen alguna base en la realidad.
+**Desventajas**:
+- Puede llevar a sobreajuste (overfitting)
+- No introduce variedad real en los datos
 
-#### 6.2.4 Ajuste de umbrales
-Un enfoque más simple es ajustar los umbrales al hacer inferencias y aplicar tu modelo a los datos. Para clasificaciones (como fraude o no fraude), tendrás algún tipo de umbral de probabilidad en el que decides que algo es probablemente fraude.
+#### 6.2.2. Undersampling (Submuestreo)
+Consiste en reducir el número de casos de la clase mayoritaria.
 
-Si tienes demasiados falsos positivos, una forma de solucionarlo es aumentar ese umbral. Esto garantiza reducir tu tasa de falsos positivos, pero a costa de más falsos negativos.
+**Método**:
+- Eliminar aleatoriamente ejemplos de la clase mayoritaria
+- Mantener solamente un subconjunto hasta alcanzar un mejor balance con la clase minoritaria
 
-Antes de hacer algo así, debes pensar en el impacto que tendrá ese umbral:
-- Si aumentas el umbral, tendrás menos transacciones marcadas como fraude (menos falsos positivos, pero podrías perder casos reales de fraude)
-- Si disminuyes el umbral, detectarás más casos de fraude (pero con más falsos positivos)
+**Ventajas**:
+- Reduce el tiempo de entrenamiento
+- Puede ayudar a resolver problemas de memoria o escalabilidad
 
-Debes considerar el costo de un falso positivo frente a un falso negativo y elegir tus umbrales en consecuencia. En el caso del fraude, podría ser mejor equivocarse al marcar algo como fraudulento cuando no lo es, que no detectar un caso real de fraude.
+**Desventajas**:
+- Descarta información potencialmente valiosa
+- Generalmente no es la mejor opción a menos que haya restricciones de recursos
+
+**Casos de uso recomendados**:
+- Cuando tienes demasiados datos para procesar con tus recursos computacionales
+- Como parte de un enfoque híbrido (combinado con otras técnicas)
+
+#### 6.2.3. SMOTE (Synthetic Minority Oversampling Technique)
+Técnica más avanzada que genera sintéticamente nuevos ejemplos de la clase minoritaria.
+
+**Funcionamiento**:
+1. Para cada muestra de la clase minoritaria, encuentra sus K vecinos más cercanos (KNN)
+2. Selecciona aleatoriamente uno de esos vecinos
+3. Crea un nuevo ejemplo sintético ubicado aleatoriamente en algún punto de la línea que conecta la muestra original con el vecino seleccionado
+4. Repite este proceso hasta alcanzar el balance deseado
+
+**Ventajas**:
+- Genera ejemplos nuevos en lugar de simples copias
+- Mantiene las características de distribución de la clase minoritaria
+- Generalmente produce mejores resultados que el oversampling simple
+
+**Desventajas**:
+- Más complejo de implementar
+- Puede generar ejemplos poco realistas si se aplica sin consideraciones adicionales
+
+### 6.3. Ajuste de Umbrales de Decisión
+
+#### 6.3.1. Concepto de umbral
+La mayoría de los modelos de clasificación no producen simplemente "sí" o "no", sino una probabilidad. El umbral determina a partir de qué probabilidad clasificamos un caso como positivo.
+
+**Ejemplo**: Por defecto, si un modelo predice una probabilidad de fraude > 0.5 (50%), se clasifica como fraude. Pero este umbral puede ajustarse.
+
+#### 6.3.2. Modificando el umbral
+- **Aumentar el umbral**: Requiere una mayor probabilidad para clasificar como positivo
+  - Reduce falsos positivos
+  - Aumenta falsos negativos
+  
+- **Disminuir el umbral**: Requiere menor probabilidad para clasificar como positivo
+  - Reduce falsos negativos
+  - Aumenta falsos positivos
+
+#### 6.3.3. Consideraciones para el ajuste de umbrales
+- **Costo relativo de los errores**: ¿Qué es peor, un falso positivo o un falso negativo?
+- **Contexto del problema**: En fraude, puede ser preferible tener más falsos positivos (molestias para clientes) que falsos negativos (pérdidas económicas)
+- **Métricas de evaluación**: Analizar más allá de la exactitud (accuracy), considerando recall, precisión y F1-score
+
+### 6.4. Evaluación de Modelos con Datos No Balanceados
+
+#### 6.4.1. El problema con la métrica de exactitud (accuracy)
+En conjuntos muy desbalanceados, la exactitud puede ser engañosa, ya que un modelo que siempre predice la clase mayoritaria tendrá una alta exactitud.
+
+#### 6.4.2. Métricas alternativas
+- **Precision**: De todos los casos que predecimos como positivos, ¿cuántos son realmente positivos?
+- **Recall**: De todos los casos positivos reales, ¿cuántos detectamos correctamente?
+- **F1-Score**: Media armónica entre precision y recall
+- **AUC-ROC**: Área bajo la curva ROC, que muestra el rendimiento en diferentes umbrales
+- **Matriz de confusión**: Visualización que muestra verdaderos positivos, falsos positivos, falsos negativos y verdaderos negativos
+
+#### 6.4.3. Validación cruzada estratificada
+Para evaluar modelos con datos no balanceados, es importante usar validación cruzada estratificada, que mantiene la proporción de clases en cada partición.
+
+---
+
+## Resumen para el Examen
+
+### Datos No Balanceados - Conceptos Clave
+- **Definición**: Gran disparidad entre casos positivos y negativos en los datos
+- **Problema principal**: Los modelos tienden a favorecer la clase mayoritaria
+- **Ejemplo común**: Detección de fraude (muy pocos ejemplos positivos)
+- **Terminología**: "Positivo" se refiere al caso que intentamos detectar, independientemente de si es deseable o no
+
+### Técnicas para Manejar Datos No Balanceados
+
+| Técnica | Descripción | Ventajas | Desventajas | Cuándo usar |
+|---------|-------------|----------|-------------|-------------|
+| **Oversampling** | Duplicar ejemplos de la clase minoritaria | Simple, preserva toda la información | Posible sobreajuste, no añade variedad | Cuando se necesita una solución rápida |
+| **Undersampling** | Eliminar ejemplos de la clase mayoritaria | Reduce tiempo de entrenamiento | Descarta información | Cuando hay limitaciones de recursos |
+| **SMOTE** | Generar ejemplos sintéticos usando KNN | Crea nuevos ejemplos en lugar de copias | Más complejo, puede crear ejemplos poco realistas | Cuando se necesita una solución más robusta |
+| **Ajuste de Umbrales** | Modificar el punto de corte para clasificación | No requiere reentrenamiento | No mejora el aprendizaje del modelo | Como ajuste fino después del entrenamiento |
+
+### Evaluación de Modelos
+- **No usar solo accuracy**: En datos no balanceados, la exactitud puede ser engañosa
+- **Métricas recomendadas**: Precision, Recall, F1-Score, AUC-ROC
+- **Considerar costos de error**: Evaluar el impacto relativo de falsos positivos vs. falsos negativos
+
+**Consejo para el examen**: Si se pregunta por la mejor técnica para manejar datos no balanceados, SMOTE generalmente será una mejor respuesta que oversampling simple o undersampling. Cuando se trate de métricas de evaluación, recuerda que accuracy no es adecuada para datos muy desbalanceados, y se deberían preferir métricas como F1-score o AUC-ROC. Entiende también cómo el ajuste de umbrales afecta el balance entre falsos positivos y falsos negativos, y que la elección depende del costo relativo de estos errores en tu aplicación específica.
+
 
 ## 7. Handling Outliers
 
-### 7.1 Fundamentos matemáticos para identificar outliers
+### 7.1. Fundamentos Estadísticos
 
-Antes de hablar sobre outliers (valores atípicos), necesitamos entender algunos conceptos matemáticos básicos.
+Para comprender adecuadamente los outliers (valores atípicos), es importante tener claros algunos conceptos estadísticos básicos.
 
-#### 7.1.1 Varianza
-La varianza, generalmente representada como sigma al cuadrado (σ²), es el promedio de las diferencias al cuadrado desde la media. Para calcular la varianza de un conjunto de datos:
+#### 7.1.1. Varianza
 
-1. Calcula la media del conjunto de datos
-2. Encuentra las diferencias desde la media para cada punto de datos
-3. Eleva al cuadrado estas diferencias
-4. Calcula el promedio de estos valores al cuadrado
+La varianza es una medida de dispersión que indica qué tan alejados están los valores de un conjunto de datos con respecto a su media.
 
-Por ejemplo, si tenemos los datos [1, 4, 5, 4, 8]:
-- La media es 4.4
-- Las diferencias desde la media son [-3.4, -0.4, 0.6, -0.4, 3.6]
-- Las diferencias al cuadrado son [11.56, 0.16, 0.36, 0.16, 12.96]
-- La varianza es el promedio de estos valores: 5.04
+**Cálculo de la varianza (σ²)**:
+1. Calcular la media del conjunto de datos
+2. Restar la media de cada valor para obtener las diferencias
+3. Elevar al cuadrado cada diferencia
+4. Calcular el promedio de estas diferencias al cuadrado
 
-Elevamos al cuadrado las diferencias por dos razones:
-- Para asegurar que las varianzas negativas cuenten tanto como las positivas
-- Para dar más peso a los outliers
+**Ejemplo**:
+Para el conjunto de datos [1, 4, 5, 4, 8]:
+1. Media = (1 + 4 + 5 + 4 + 8) / 5 = 4.4
+2. Diferencias: [1 - 4.4, 4 - 4.4, 5 - 4.4, 4 - 4.4, 8 - 4.4] = [-3.4, -0.4, 0.6, -0.4, 3.6]
+3. Diferencias al cuadrado: [11.56, 0.16, 0.36, 0.16, 12.96]
+4. Varianza = (11.56 + 0.16 + 0.36 + 0.16 + 12.96) / 5 = 5.04
 
-#### 7.1.2 Desviación Estándar
-La desviación estándar (σ) es simplemente la raíz cuadrada de la varianza. En nuestro ejemplo, la desviación estándar es √5.04 = 2.24.
+**¿Por qué elevamos al cuadrado?**:
+- Evita que los valores negativos y positivos se cancelen entre sí
+- Da mayor peso a los valores más alejados de la media
+- Convierte todas las diferencias a valores positivos
 
-La desviación estándar se utiliza comúnmente para identificar outliers en un conjunto de datos. En una distribución normal, los valores dentro de una desviación estándar de la media son considerados típicos. En nuestro ejemplo, 1 y 8 caen fuera de este rango (4.4 ± 2.24), por lo que podemos considerarlos matemáticamente como outliers.
+#### 7.1.2. Desviación Estándar
 
-### 7.2 Identificación de outliers
+La desviación estándar (σ) es simplemente la raíz cuadrada de la varianza y es una medida más intuitiva de la dispersión.
 
-Existen varios métodos para identificar outliers:
+**Cálculo**:
+- σ = √σ²
 
-1. **Desviación estándar**: Definir outliers como puntos que están a una cierta cantidad de desviaciones estándar de la media (comúnmente 1, 2 o 3 desviaciones estándar)
+**Ejemplo**:
+Para el conjunto anterior con varianza = 5.04:
+- Desviación estándar = √5.04 = 2.24
 
-2. **Diagramas de caja y bigotes (Box and Whisker)**: Estos diagramas tienen una forma incorporada de detectar y visualizar outliers, definiéndolos como puntos que están fuera de 1.5 veces el rango intercuartil
+La desviación estándar nos permite interpretar qué tan lejos está un valor de la media en términos de "unidades de desviación".
 
-3. **Random Cut Forest**: Algoritmo propio de AWS para detección de outliers, disponible en varios servicios:
-   - Amazon QuickSight
-   - Kinesis Analytics
-   - SageMaker
-   - Y otros servicios de AWS
+### 7.2. Identificación de Outliers
 
-No existe una regla absoluta sobre qué es un outlier. Debes examinar tus datos, observar la distribución, mirar el histograma y comprender qué representan los valores atípicos antes de decidir eliminarlos.
+#### 7.2.1. Método de la Desviación Estándar
 
-### 7.3 Manejo de outliers
+Un enfoque común para identificar outliers es considerar como tales aquellos valores que se encuentran a más de cierto número de desviaciones estándar de la media.
 
-Una vez identificados los outliers, debes decidir cómo manejarlos. A veces es apropiado eliminarlos, y a veces no. Debes tomar esta decisión responsablemente.
+**Regla típica**:
+- Outliers leves: valores a más de 1 desviación estándar de la media
+- Outliers moderados: valores a más de 2 desviaciones estándar de la media
+- Outliers extremos: valores a más de 3 desviaciones estándar de la media
 
-#### 7.3.1 Ejemplos donde podría ser apropiado eliminar outliers:
+**Ejemplo**:
+En nuestro conjunto [1, 4, 5, 4, 8] con media = 4.4 y desviación estándar = 2.24:
+- Rango de valores no outliers (1 desviación): [4.4 - 2.24, 4.4 + 2.24] = [2.16, 6.64]
+- Los valores 1 y 8 están fuera de este rango, por lo que serían considerados outliers
 
-- En filtrado colaborativo para recomendaciones de películas, donde algunos usuarios "power users" han calificado casi todas las películas y podrían tener una influencia desproporcionada
-- Al analizar datos de registros web donde los outliers podrían indicar tráfico malicioso o bots
-- Cuando los outliers representan errores en la recopilación de datos
+#### 7.2.2. Método del Rango Intercuartil (IQR)
 
-#### 7.3.2 Ejemplos donde no debería eliminar outliers:
+Este método se basa en los cuartiles del conjunto de datos y es menos sensible a valores extremos que la desviación estándar.
 
-- Cuando calculas el ingreso promedio y los millonarios/billonarios son outliers legítimos que deberían influir en el promedio
-- Cuando los outliers representan casos reales y relevantes para lo que estás tratando de modelar
+**Cálculo**:
+1. Ordenar los datos
+2. Encontrar Q1 (primer cuartil, percentil 25)
+3. Encontrar Q3 (tercer cuartil, percentil 75)
+4. Calcular IQR = Q3 - Q1
+5. Definir límites: [Q1 - 1.5×IQR, Q3 + 1.5×IQR]
+6. Los valores fuera de estos límites son outliers
 
-### 7.4 Ejemplo práctico: Desigualdad de ingresos
+Este método está relacionado con los diagramas de caja y bigotes (box and whisker plots) para visualizar outliers.
 
-Si estamos modelando distribuciones de ingresos y tenemos un conjunto de datos con ingresos centrados alrededor de $27,000, pero con un solo billonario, este outlier distorsionaría significativamente nuestra distribución.
+#### 7.2.3. Random Cut Forest (AWS)
 
-Un enfoque simple para la detección de outliers sería:
-1. Calcular la mediana del conjunto de datos completo
-2. Calcular la desviación estándar
-3. Eliminar cualquier punto que esté fuera de dos desviaciones estándar
+AWS implementa su propio algoritmo de detección de outliers llamado Random Cut Forest, que está disponible en varios servicios:
 
-Al aplicar esta función y volver a graficar el histograma, obtendríamos datos más significativos al rechazar ese outlier.
-
-Lo importante es considerar si realmente es apropiado eliminar ese billonario o no, basado en el efecto que tiene en el resultado empresarial que estás tratando de lograr.
-
-## 8. Binning, Transforming, Encoding, Scaling and Shuffling
-
-### 8.1 Binning
-
-Binning es una técnica que consiste en tomar datos numéricos y transformarlos en datos categóricos, agrupando los valores en rangos.
-
-**Ejemplo**: 
-- Para edades de personas, podríamos agrupar a todos los que están en sus 20s en un grupo, los de 30s en otro, y así sucesivamente.
-- En lugar de usar la edad exacta (22.3 años), utilizamos la categoría "veinteañeros".
-
-**Razones para usar binning**:
-1. **Manejar incertidumbre en las mediciones**: Si no hay precisión exacta en los datos (por ejemplo, alguien podría recordar mal su cumpleaños), el binning puede ayudar a cubrir esta imprecisión.
-2. **Usar modelos que trabajan con datos categóricos**: Aunque esto es cuestionable porque estás descartando información, podría ser necesario para ciertos algoritmos.
-
-#### 8.1.1 Quantile Binning
-Una variante especial es el quantile binning, que categoriza los datos por su lugar en la distribución, asegurando que cada bin contenga un número igual de muestras. La ventaja es que garantiza tamaños uniformes en cada bin.
-
-### 8.2 Transformación de datos
-
-Consiste en aplicar alguna función a nuestras features para hacerlas más adecuadas para los algoritmos que vamos a utilizar.
-
-**Ejemplo**: 
-- Si tienes datos con una tendencia exponencial, podría beneficiarse de una transformación logarítmica para hacerlos más lineales.
-- Esto puede ayudar a muchos modelos que tienen dificultad con datos no lineales.
-
-Un caso real es YouTube, que en su sistema de recomendaciones, para cada feature numérica x, también incluye x² (cuadrado) y √x (raíz cuadrada). Esto les permite aprender funciones superlineales y sublineales en los datos, mejorando significativamente sus resultados.
-
-Es importante notar que a veces no se reemplaza el dato original con la transformación, sino que se crean nuevas features a partir de la transformación de las existentes.
-
-### 8.3 Encoding (Codificación)
-
-La codificación es muy común en deep learning, donde los modelos requieren un tipo específico de entrada, y debes transformar tus datos al formato requerido.
-
-#### 8.3.1 One-Hot Encoding
-Es una técnica muy común donde se crea un "bucket" (contenedor) para cada categoría posible. Se representa con un "1" la categoría que existe y con "0" las que no.
-
-**Ejemplo**: Para reconocimiento de dígitos manuscritos (0-9):
-- Si tenemos una imagen del número 8, la codificación one-hot sería: [0,0,0,0,0,0,0,0,1,0]
-- El "1" en la novena posición (índice 8) indica que es el número 8
-- Todos los demás valores son 0, indicando que no es ninguno de esos dígitos
-
-Esto es necesario en deep learning porque las neuronas generalmente están activadas (1) o desactivadas (0), y no podemos simplemente ingresar un número como 8 directamente y esperar que funcione.
-
-### 8.4 Scaling y Normalización
-
-La mayoría de los modelos requieren que los datos de features estén normalizados o escalados:
-
-- Muchos modelos prefieren que sus datos tengan una distribución normal alrededor de cero
-- Como mínimo, la mayoría de los modelos requieren que los datos estén escalados a valores comparables
-
-Si no normalizas los datos, las features con magnitudes más grandes tendrán más peso en tu modelo del que deberían.
-
-**Ejemplo**: Si intentas entrenar un modelo con ingresos (números grandes como 50,000) y edades (números pequeños como 30-40), sin normalización el ingreso tendría un impacto mucho mayor en el modelo.
-
-Es fácil implementar esto con bibliotecas como scikit-learn en Python, que incluye módulos como `MinMaxScaler`. Solo recuerda que si estás prediciendo valores numéricos (no categorías), deberás revertir el escalado para obtener resultados significativos.
-
-### 8.5 Shuffling (Barajado)
-
-Muchos algoritmos se benefician de mezclar aleatoriamente los datos de entrenamiento. Esto es importante porque:
-
-- Elimina cualquier señal residual en los datos que provenga del orden en que fueron recolectados
-- Puede mejorar significativamente la calidad del modelo
-
-Hay muchos casos donde un modelo con mal rendimiento mejoró drásticamente simplemente al barajar los datos de entrada, así que es una técnica que no debes olvidar implementar.
-
-## 9. SageMaker Overview
-
-### 9.1 Introducción a Amazon SageMaker
-
-SageMaker es el servicio principal de Amazon para machine learning. Aunque puede utilizarse para IA generativa, existen otros servicios específicamente diseñados para eso. SageMaker existe desde antes de que la IA generativa fuera tan relevante y está diseñado para ser más amplio, abarcando algoritmos de machine learning en general, incluyendo deep learning tradicional.
-
-La característica clave de SageMaker es que está construido para manejar el flujo de trabajo completo en torno al machine learning:
-- Obtención, limpieza y preparación de datos
-- Entrenamiento y evaluación de modelos
-- Despliegue de modelos y evaluación de resultados en producción
-
-De esta manera, SageMaker cubre todo el ciclo de vida del machine learning a través de sus diversas funcionalidades.
-
-### 9.2 Flujo de trabajo de entrenamiento y despliegue
-
-Conceptualmente, el proceso de entrenamiento y despliegue de un modelo en SageMaker funciona de la siguiente manera:
-
-#### 9.2.1 Proceso de despliegue (de arriba hacia abajo)
-1. Una aplicación cliente quiere obtener predicciones de un modelo de machine learning creado con SageMaker
-2. La aplicación se comunica con un endpoint (que pueden ser múltiples endpoints si se está escalando)
-3. Los endpoints se comunican con el modelo desplegado y alojado
-4. El modelo utiliza:
-   - Artefactos alojados en S3
-   - Código de modelo para realizar inferencias (almacenado posiblemente en ECR - Elastic Container Registry)
-
-#### 9.2.2 Proceso de entrenamiento (de abajo hacia arriba)
-1. El código de entrenamiento se aloja en ECR
-2. Este código consume datos de entrenamiento desde S3
-3. Una vez entrenado, el modelo produce artefactos que se almacenan en S3
-4. El modelo se despliega utilizando código de inferencia alojado en ECR
-5. El modelo desplegado es accesible a través de endpoints para inferencia
-6. La aplicación cliente se comunica con estos endpoints
-
-### 9.3 Formas de configurar SageMaker
-
-Existen diferentes maneras de configurar y utilizar SageMaker:
-
-#### 9.3.1 Usando código (SageMaker Notebooks)
-Una forma es utilizando código Python para orquestar todo el proceso desde un SageMaker notebook:
-
-- Son notebooks Jupyter ejecutados en instancias EC2
-- Vienen con acceso incorporado a S3
-- Incluyen bibliotecas útiles preinstaladas como scikit-learn, Spark, TensorFlow o PySpark
-- Ofrecen una amplia variedad de modelos incorporados
-
-Desde estos notebooks puedes:
-- Iniciar instancias de entrenamiento usando los tipos de instancia que necesites
-- Iniciar el entrenamiento
-- Evaluar y ajustar el modelo
-- Desplegar el modelo para hacer predicciones a escala
-
-Esto permite orquestar todo el ciclo de vida desde un solo lugar: procesamiento de datos, entrenamiento, ajuste y despliegue del modelo.
-
-#### 9.3.2 Usando la consola de AWS
-Si prefieres no escribir código, gran parte de este proceso se puede realizar directamente desde la interfaz de usuario en la consola de SageMaker:
-
-- Configurar trabajos de entrenamiento
-- Seleccionar entre muchos algoritmos incorporados
-- Especificar la fuente de datos de entrenamiento
-- Gestionar el despliegue
-
-Esto significa que no es necesario escribir código Python para usar SageMaker y construir modelos de machine learning que puedan realizar predicciones en producción.
-
-
-## 10. SageMaker AI Domains
-
-### 10.1 Introducción a SageMaker AI Domains
-
-Antes de poder hacer cualquier cosa en SageMaker AI (su nombre actual), necesitas crear lo que se llama un "domain" (dominio). Todo lo que haces dentro de SageMaker AI está bajo el paraguas de este dominio que creas.
-
-### 10.2 Componentes de un SageMaker Domain
-
-Un dominio de SageMaker consta de varios componentes:
-
-1. **Volumen EFS compartido**: 
-   - Un volumen de Amazon Elastic File System (EFS) que se comparte en todo el dominio
-   - SageMaker divide este volumen EFS entre los diferentes usuarios y recursos compartidos
-   - Bajo el capó, hay un volumen EFS que está asociado con ese dominio
-
-2. **Lista de usuarios autorizados**:
-   - Usuarios que tienen permiso para acceder al dominio y los recursos dentro de él
-
-3. **Configuraciones del dominio**:
-   - Configuraciones de políticas varias
-   - Configuraciones de VPC (Virtual Private Cloud)
-
-### 10.3 User Profiles (Perfiles de Usuario)
-
-Dentro de un dominio puedes tener perfiles de usuario:
-
-- Un perfil de usuario es básicamente el concepto de una persona que utiliza un dominio de SageMaker
-- Todo lo que está centrado en el usuario en la interfaz estará vinculado a un perfil de usuario dentro de ese dominio
-- Los perfiles de usuario poseen aplicaciones personales
-- Como usuario dentro de un dominio de SageMaker, puedes crear una instancia de SageMaker Studio para realizar tareas (entrenar modelos, desplegar modelos, etc.)
-- Cada usuario tiene su propio directorio EFS privado como parte de su perfil, lo que proporciona un espacio de trabajo privado dentro del volumen EFS
-- Los usuarios también pueden acceder a recursos compartidos que se pueden utilizar entre otros usuarios dentro del dominio
-
-### 10.4 Recursos Compartidos
-
-Dentro del dominio de SageMaker existen espacios compartidos:
-
-- Acceso a un directorio EFS compartido donde puedes intercambiar información entre usuarios
-- Una aplicación IDE comunal (SageMaker Studio) que puede ser utilizada por todos los usuarios dentro del dominio
-- Posibilidad de compartir datos de entrenamiento, notebooks y otros recursos
-
-### 10.5 Configuración de VPC en SageMaker Domains
-
-Un aspecto importante al usar un dominio de SageMaker AI es cómo se asocian las VPC con él:
-
-#### 10.5.1 Configuración predeterminada (dos VPCs)
-
-Cuando creas un dominio de SageMaker, por defecto tendrá dos VPCs asociadas:
-
-1. **VPC para Internet externo**:
-   - Para acceder a datos en internet o desplegar datos en internet
-   - Esta VPC es gestionada por SageMaker AI (no tienes que configurarla)
-
-2. **Tu propia VPC**:
-   - Se utiliza para cualquier tráfico cifrado a tu propio volumen EFS gestionado por SageMaker
-   - Debes especificar esta VPC
-   - Necesitas especificar también las subredes dentro de ella (generalmente todas)
-   - Debes especificar grupos de seguridad asociados con esa VPC
-
-#### 10.5.2 Configuración VPC-only
-
-No tienes que usar la configuración predeterminada. Puedes cambiarla para usar solo tu propia VPC:
-
-- Selecciona "VPC only" al crear tu dominio
-- Todo el tráfico pasará a través de tu propia VPC
-- Tienes control más detallado sobre lo que esa VPC puede acceder
-
-### 10.6 Resumen
-
-El dominio de SageMaker AI es, en resumen, una unidad organizativa para todo lo que haces dentro de SageMaker. Abarca:
-- Todos tus usuarios
-- Todas tus aplicaciones
-- Tus espacios de trabajo compartidos
-- La arquitectura de red subyacente
-
-## 11. Data Processing, Training, and Deployment with SageMaker AI
-
-### 11.1 Procesamiento de datos
-
-Si no deseas crear tu propio código y contenedor para el procesamiento de datos, puedes utilizar los algoritmos incorporados en SageMaker:
-
-- Existen contenedores de procesamiento incorporados que puedes elegir directamente desde SageMaker
-- Una vez que termina de procesar tus datos, la salida se almacena en otro bucket S3 que especifiques
-- Este bucket S3 con datos procesados se utilizará posteriormente para el entrenamiento
-
-### 11.2 Entrenamiento de modelos
-
-Para entrenar un modelo en SageMaker, necesitas crear un trabajo de entrenamiento:
-
-- El trabajo de entrenamiento tomará como entrada la URL del bucket S3 que contiene los datos de entrenamiento procesados
-- Debes asignar varios recursos de cómputo para el entrenamiento
-  - El entrenamiento de machine learning puede ser costoso y requerir hardware potente
-  - Puedes elegir qué tipo de hardware usar y cuánto
-  - Diferentes algoritmos tienen diferentes capacidades en términos de escalabilidad
-    - Algunos funcionan mejor con una sola computadora
-    - Otros funcionan mejor con múltiples tipos de instancias
-    - Cada algoritmo tiene sus propias recomendaciones sobre qué tipo de instancia usar
-
-- Necesitarás un bucket S3 para la salida (artefactos del modelo)
-  - Aquí es donde se almacena el modelo entrenado
-
-- También necesitarás proporcionar una ruta a ECR (Elastic Container Registry) donde vive tu código de entrenamiento
-  - Todo está basado en contenedores: contenedor para procesamiento de datos y contenedor para el código de entrenamiento
-
-### 11.3 Opciones de algoritmos de entrenamiento
-
-Tienes múltiples opciones para el entrenamiento:
-
-1. **Algoritmos incorporados de SageMaker**
-2. **Spark Machine Learning Library**
-3. **Tu propio código en:**
-   - Python
-   - TensorFlow
-   - PyTorch
-   - MXNet
-4. **Para modelos no basados en deep learning:**
-   - scikit-learn
-   - RL Estimator (para aprendizaje por refuerzo)
-   - XGBoost
-5. **Hugging Face**
-   - Repositorio grande de modelos, incluyendo modelos de IA generativa y LLMs
-6. **Chainer**
-7. **Tu propia imagen Docker personalizada**
-8. **Algoritmos disponibles para compra en AWS Marketplace**
-
-### 11.4 Despliegue de modelos
-
-Una vez entrenado el modelo, necesitas desplegarlo y ponerlo en producción:
-- El modelo se guardará en un bucket S3
-- Existen diferentes opciones para el despliegue:
-
-#### 11.4.1 Endpoints en tiempo real
-- Crear un endpoint persistente para hacer predicciones en tiempo real bajo demanda
-- Escalar según sea necesario
-
-#### 11.4.2 Transformación por lotes (Batch Transform)
-- Para cuando no necesitas predicciones en tiempo real
-- Procesa grandes grupos de datos de una vez
-- Obtiene predicciones para todo un conjunto de datos sin necesidad de un endpoint en tiempo real
-
-#### 11.4.3 Opciones adicionales de despliegue
-
-- **Inference Pipelines**: para orquestar procesamientos más complejos
-- **SageMaker Neo**: para desplegar modelos entrenados en dispositivos edge
-  - Útil cuando no hay conectividad confiable a internet/nube
-  - Cuando no puedes tolerar la latencia de ir a la nube
-
-- **Elastic Inference**: para acelerar tus modelos desplegados
-- **Escalado automático**: aumenta automáticamente el número de endpoints según sea necesario cuando aumenta el tráfico
-- **Shadow Testing**: evalúa nuevos modelos contra los modelos actualmente desplegados para detectar errores
-
-SageMaker ofrece muchas características que permiten desplegar modelos recién entrenados de manera controlada y revertir cambios si no funcionan como se esperaba, lo cual es una parte importante de las operaciones.
-
-## 12. Amazon SageMaker Ground Truth and Label Generation
-
-### 12.1 Introducción a SageMaker Ground Truth
-
-SageMaker Ground Truth es un servicio relativamente nuevo de Amazon diseñado para utilizar humanos en el etiquetado de datos. Fundamentalmente, está relacionado con el manejo de datos faltantes, especialmente etiquetas y características (features).
-
-La idea básica es que si tienes datos faltantes que pueden ser inferidos fácilmente por un humano, Ground Truth te permite externalizar estas tareas a personas reales para completar esa información faltante.
-
-### 12.2 Casos de uso comunes
-
-El caso de uso más común es la clasificación de imágenes:
-- Si estás entrenando un nuevo modelo de clasificación de imágenes, necesitas etiquetar todas las imágenes de entrenamiento con lo que contienen
-- Esta es una tarea que generalmente no es fácil para una computadora
-- Por ejemplo, identificar si una imagen muestra un partido de baloncesto o fútbol, o qué tipo de ave aparece en una imagen
-
-Ground Truth administra un grupo de personas que etiquetarán tus datos para propósitos de entrenamiento. Cuando tienes un conjunto de datos grande, como muchas imágenes que necesitan etiquetas, a veces los seres humanos son la mejor manera de obtener esas etiquetas.
-
-### 12.3 Aprendizaje automático en Ground Truth
-
-Lo que diferencia a Ground Truth es que crea su propio modelo a medida que se van agregando etiquetas:
-
-- El modelo aprende a medida que recibe más y más datos etiquetados de los humanos
-- Con el tiempo, solo enviará a los humanos las etiquetas sobre las que no está seguro
-- A medida que recibe más etiquetas de los etiquetadores humanos, el modelo mejora
-- Solo los casos ambiguos se envían a los humanos
-- Esto reduce el costo de los trabajos de etiquetado hasta en un 70%
-
-### 12.4 Opciones de personal para etiquetado
-
-Ground Truth ofrece diferentes opciones para quién puede realizar el etiquetado:
-
-1. **Amazon Mechanical Turk**: Una gran fuerza laboral de personas de todo el mundo que etiquetarán tus datos por una pequeña cantidad de dinero
-2. **Equipo interno**: Puedes elegir usar tu propio equipo interno, lo que tiene sentido para datos sensibles
-3. **Empresas de etiquetado profesionales**: Compañías especializadas que tienen personal dedicado al etiquetado de datos de entrenamiento
-
-### 12.5 Alternativas al etiquetado humano
-
-Existen otras técnicas para generar etiquetas de entrenamiento sin usar humanos:
-
-1. **AWS Rekognition**: 
-   - Servicio de AWS para reconocimiento de imágenes
-   - Tiene un modelo pre-entrenado para la mayoría de los tipos comunes de objetos
-   - Útil si necesitas clasificar imágenes con objetos comunes
-
-2. **AWS Comprehend**:
-   - Servicio de AWS para análisis de texto y modelado de temas
-   - Puede generar automáticamente temas o sentimientos para un documento
-   - Útil tanto para crear etiquetas como para generar características adicionales de entrenamiento
-
-3. **Cualquier modelo pre-entrenado o técnica de aprendizaje no supervisado** puede ser útil para generar nuevas etiquetas de entrenamiento o incluso nuevas características para tu conjunto de datos
-
-### 12.6 SageMaker Ground Truth Plus
-
-Si Ground Truth todavía te parece complicado, existe Ground Truth Plus:
-
-- Una solución llave en mano donde contratas a alguien a través de AWS para configurar y gestionar todo el proyecto
-- Un equipo de "expertos de AWS" gestiona el flujo de trabajo y configura todo por ti
-- Administran tu equipo de etiquetadores
-- Solo necesitas completar un formulario indicando quién eres y qué intentas hacer
-- Te contactarán para discutir los detalles y el precio (que no se divulga públicamente)
-- Puedes seguir el progreso a través del portal de proyectos de Ground Truth Plus
-- Cuando terminan, obtienes tus datos etiquetados desde S3
-
-En resumen, Ground Truth Plus es una forma de delegar todo el problema del etiquetado de datos a alguien más, si estás dispuesto a pagar por ello.
-
-## 13. Amazon Mechanical Turk
-
-### 13.1 Origen del nombre
-
-Amazon Mechanical Turk toma su nombre del "Turco Mecánico" original de 1770, una máquina de ajedrez construida por un inventor que parecía ser un autómata capaz de jugar al ajedrez, pero que en realidad era una ilusión. Dentro de la máquina se escondía una persona que controlaba los movimientos del "robot". Los espectadores creían estar jugando contra una máquina, cuando en realidad estaban enfrentándose a un humano oculto.
-
-### 13.2 ¿Qué es Amazon Mechanical Turk?
-
-Amazon Mechanical Turk (MTurk) es un mercado de crowdsourcing diseñado para realizar tareas humanas simples. Proporciona:
-
-- Acceso a una fuerza laboral virtual distribuida
-- Humanos reales que realizan las tareas en segundo plano
-- Capacidad para ejecutar tareas simples y económicas a gran escala
-
-### 13.3 Casos de uso comunes
-
-MTurk es útil para diversas tareas que requieren inteligencia humana:
-
-- **Clasificación de imágenes**: Etiquetar grandes cantidades de imágenes
-- **Recopilación de datos**: Obtener información de diversas fuentes
-- **Procesamiento empresarial**: Tareas repetitivas que requieren criterio humano
-- **Cualquier tarea simple** que pueda distribuirse fácilmente a muchas personas
-
-### 13.4 Relevancia para IA y Machine Learning
-
-MTurk es especialmente valioso en el contexto de IA y machine learning para:
-
-- Etiquetar imágenes para conjuntos de datos de entrenamiento
-- Revisar recomendaciones generadas por algoritmos
-- Validar resultados de modelos
-- Crear datos de entrenamiento de alta calidad
-
-Existe una profunda integración entre Amazon Mechanical Turk y otros servicios como Amazon SageMaker Ground Truth, lo que facilita su uso en flujos de trabajo de aprendizaje automático.
-
-### 13.5 Funcionamiento del servicio
-
-Cuando se utiliza MTurk como solicitante:
-
-1. Defines una tarea simple con instrucciones claras
-2. Estableces una recompensa por cada tarea completada (por ejemplo, 10 centavos por imagen etiquetada)
-3. Publicas el trabajo en la plataforma
-
-Los trabajadores (personas reales de todo el mundo):
-- Ven los trabajos disponibles en su interfaz
-- Pueden ver la recompensa por cada tarea
-- Eligen en qué tareas quieren trabajar
-- Completan las tareas y reciben el pago
-
-### 13.6 Consideraciones de costos
-
-El costo total depende del volumen y la recompensa que establezcas:
-- Por ejemplo, si pagas 10 centavos por imagen y tienes 10 millones de imágenes, el costo total sería aproximadamente un millón de dólares
-- Tú controlas el precio que pagas por tarea
-- Cuanto más atractiva sea la recompensa, más rápido se completará tu trabajo
-
-En resumen, Amazon Mechanical Turk proporciona acceso a una gran fuerza laboral dispuesta a realizar tareas pequeñas y repetitivas, lo que lo hace valioso para proyectos de machine learning que requieren etiquetado de datos u otras tareas que necesitan intervención humana.
-
-## 14. SageMaker Data Wrangler
-
-### 14.1 Introducción a Data Wrangler
-
-SageMaker Data Wrangler es probablemente la tecnología más directamente aplicable en SageMaker para la ingeniería de datos. Es básicamente un pipeline ETL (Extract, Transform, Load) integrado en SageMaker Studio. Como podrías imaginar, tiene mucho en común con AWS Glue Data Studio, pero está personalizado específicamente para pipelines de machine learning.
-
-### 14.2 Funcionalidades principales
-
-Data Wrangler ofrece varias funcionalidades clave:
-
-1. **Importación de datos**: Permite importar datos desde diversas fuentes (archivos CSV en S3, datos de streaming, etc.)
-
-2. **Visualización de datos**: Te permite visualizar tus datos y asegurarte de que estás conforme con su distribución, así como identificar cualquier outlier antes de alimentar tu modelo de machine learning
-
-3. **Transformación de datos**: Ofrece más de 300 transformaciones predefinidas para elegir, o puedes integrar tus propias transformaciones usando código pandas, PySpark o PySpark SQL si deseas hacer algo especializado
-
-4. **Quick Model**: Una característica que permite entrenar rápidamente tu modelo con un subconjunto de datos y medir sus resultados, lo que te ayuda a experimentar con diferentes transformaciones y determinar cuáles producen los mejores resultados
-
-### 14.3 Arquitectura y flujo de datos
-
-Data Wrangler actúa como intermediario entre las fuentes de datos y sus destinos:
-
-#### 14.3.1 Fuentes de datos compatibles:
-- Amazon S3
-- AWS Lake Formation
-- Amazon Athena
-- SageMaker Feature Store
-- Amazon Redshift
-- Cualquier fuente compatible con JDBC (como Salesforce u otras aplicaciones SaaS)
-- Sistemas externos como Databricks
-
-#### 14.3.2 Destinos posibles:
-- Jupyter Notebooks (exporta código para procesamiento adicional)
-- Amazon SageMaker Processing (para entrenar modelos)
-- SageMaker Pipelines (como parte de un proceso más amplio)
-- SageMaker Feature Store (para hacer las características transformadas disponibles para otros modelos)
-
-Es importante entender que Data Wrangler no realiza las transformaciones en tu pipeline directamente, sino que genera código para realizar esas transformaciones. Es más un generador de código que una herramienta de procesamiento en sí misma.
-
-### 14.4 Ejemplo práctico de uso
-
-El flujo de trabajo típico en Data Wrangler incluye:
-
-#### 14.4.1 Importación de datos
-- Desde la pestaña "Import" en SageMaker Studio
-- Se selecciona un archivo específico (por ejemplo, un CSV de S3)
-- El sistema previsualiza automáticamente el contenido del archivo
-- En el ejemplo, se utilizan datos de pasajeros del Titanic (quién sobrevivió, su clase, nombre, etc.)
-
-#### 14.4.2 Exploración y validación de datos
-- Se puede expandir la previsualización para ver más detalles
-- Verificar y modificar los tipos de datos inferidos si es necesario
-- Cambiar nombres de columnas para hacerlos más legibles
-- Visualizar la distribución de los datos (por ejemplo, la distribución de edades de los pasajeros)
-- Realizar comprobaciones de coherencia antes de procesar los datos
-
-#### 14.4.3 Transformación de datos
-- Aplicar transformaciones a los datos, como "encode categorical"
-- El ejemplo muestra la transformación de la columna "class" mediante one-hot encoding
-- Esto convierte una característica categórica (clase 1, 2 o 3) en tres características binarias
-
-#### 14.4.4 Uso de Quick Model
-- Entrenar rápidamente un modelo con los datos transformados
-- Evaluar cómo las transformaciones afectan el rendimiento del modelo
-- Iterar y optimizar las transformaciones en función de los resultados
-
-#### 14.4.5 Exportación del flujo de datos
-- Generar un notebook de Jupyter con el código Python necesario
-- Este código encapsula todos los pasos ETL definidos en Data Wrangler
-- Permite integrar el proceso en pipelines más amplios
-
-### 14.5 Solución de problemas comunes
-
-Si encuentras dificultades con Data Wrangler, considera estos consejos:
-
-1. **Permisos IAM**: Asegúrate de que tu usuario de SageMaker Studio tenga los roles IAM apropiados para Data Wrangler
-
-2. **Acceso a fuentes de datos**: Verifica que tus fuentes de datos permitan el acceso a Data Wrangler
-   - Cualquier fuente de datos debe tener adjunta la política "Amazon SageMaker Full Access"
-
-3. **Límites de recursos**: Si ves un error del tipo "the following instance type is not available"
-   - Esto generalmente significa que necesitas solicitar un aumento de cuota
-   - Ve a Service Quotas > Amazon SageMaker > Studio Kernel Gateway Apps
-   - Solicita más instancias ml.m5.4xlarge
-   - Este proceso requiere aprobación administrativa
-
-## 15. SageMaker Model Monitor and SageMaker Clarify
-
-### 15.1 Introducción a SageMaker Model Monitor
-
-Cuando se despliega un sistema de machine learning en producción, no se puede garantizar que funcionará de la misma manera para siempre. La naturaleza de los datos que ingresan al sistema puede cambiar con el tiempo de formas imprevistas, lo que podría afectar el rendimiento del modelo.
-
-SageMaker Model Monitor aborda este problema permitiéndote:
-- Recibir alertas a través de CloudWatch sobre cualquier desviación de calidad en tus modelos desplegados
-- Visualizar el data drift (cambios en los datos a lo largo del tiempo)
-- Detectar automáticamente anomalías y outliers en los datos
-- Identificar nuevas características en tus datos que no estaban presentes anteriormente
-
-Todo esto se puede configurar visualmente dentro de SageMaker Studio, sin necesidad de escribir código.
-
-### 15.2 Casos de uso de Model Monitor
-
-Algunos ejemplos de situaciones donde Model Monitor es útil:
-
-- **Predicciones crediticias**: La distribución de atributos de los solicitantes de préstamos puede cambiar con el tiempo
-- **Problemas de calidad de datos**: Puedes comenzar a tener características de entrada faltantes o datos corruptos
-- **Nuevas oportunidades**: Detectar nuevas características en los datos que podrían aprovecharse para mejorar el modelo
-
-### 15.3 SageMaker Clarify y su integración con Model Monitor
-
-SageMaker Clarify se integra con Model Monitor para proporcionar capacidades adicionales:
-
-- **Detección de sesgos**: Identifica posibles sesgos en tus modelos, como desequilibrios entre diferentes grupos, edades o niveles de ingreso
-- **Explicabilidad del modelo**: Ayuda a explicar el comportamiento del modelo, indicando qué características contribuyen más a las predicciones
-- **Monitoreo de sesgos**: Permite configurar alertas cuando se detectan sesgos en los datos o predicciones
-
-#### 15.3.1 Métricas de sesgo en Clarify
-
-Clarify ofrece varias métricas para medir el sesgo en tus datos de entrenamiento:
-- Divergencia de Kullback-Leibler (muy popular)
-- Otras métricas específicas para diferentes tipos de sesgos
-
-Para un examen de nivel practitioner, no es necesario conocer todos los detalles de estas métricas, pero es importante saber que existen múltiples opciones disponibles.
-
-### 15.4 Funcionamiento de SageMaker Model Monitor
-
-#### 15.4.1 Almacenamiento y seguridad
-- Los datos de Model Monitor se almacenan en S3 con las medidas de seguridad correspondientes
-- Toda la información de monitoreo se mantiene segura
-
-#### 15.4.2 Programación y alertas
-- Los trabajos de monitoreo se programan con lo que se llama "monitoring schedule"
-- Pueden ejecutarse con la frecuencia que desees
-- Las métricas se envían a CloudWatch
-- Desde CloudWatch puedes configurar notificaciones para activar alarmas
-
-Es importante destacar que Model Monitor solo envía los datos a los logs de CloudWatch; tú debes configurar las alarmas adecuadas.
-
-#### 15.4.3 Acciones correctivas
-Una vez que recibes una alarma, puedes tomar acciones correctivas como:
-- Reentrenar el modelo
-- Auditar los datos para identificar el problema
-
-#### 15.4.4 Visualización
-SageMaker Model Monitor puede integrarse con:
-- TensorBoard
 - Amazon QuickSight
-- Tableau
+- Amazon Kinesis Analytics
+- Amazon SageMaker
+- Otros servicios de AWS
 
-Estas herramientas permiten visualizar los datos fuera de SageMaker Studio, aunque también puedes usar las visualizaciones integradas en la plataforma.
+Random Cut Forest es un algoritmo no supervisado que identifica puntos de datos anómalos asignándoles puntuaciones de anomalía. Es especialmente útil para la detección de anomalías en tiempo real y en flujos de datos.
 
-### 15.5 Tipos de monitoreo disponibles
+### 7.3. Decisiones para el Manejo de Outliers
 
-Model Monitor ofrece varios tipos específicos de monitoreo:
+#### 7.3.1. ¿Eliminar o mantener?
 
-1. **Drift en calidad de datos**: 
-   - Monitorea si las propiedades estadísticas de tus características están cambiando con el tiempo
-   - Se compara con una línea base que tú defines
-   - La "calidad" es subjetiva y la defines tú según tus necesidades
+La decisión de eliminar outliers debe tomarse con responsabilidad y depende del contexto:
 
-2. **Drift en calidad del modelo**:
-   - Mide la precisión de tu modelo a lo largo del tiempo
-   - Funciona de manera similar al monitoreo de calidad de datos, con una línea base definida
-   - Puede integrarse con "ground truth" (datos etiquetados por humanos) para comparar las predicciones del modelo con los resultados correctos
+**Casos donde puede ser apropiado eliminar outliers**:
+- Cuando representan errores de medición o entrada de datos
+- Cuando provienen de fuentes no relevantes para el modelo (bots, tráfico malicioso)
+- En sistemas de recomendación, cuando algunos usuarios tienen una influencia desproporcionada
 
-3. **Drift de sesgo**:
-   - Utiliza Clarify para detectar si los sesgos en tu modelo están cambiando con el tiempo
+**Casos donde NO es apropiado eliminar outliers**:
+- Cuando son parte legítima de la distribución que se está modelando
+- Cuando el objetivo específicamente requiere incluirlos (como calcular la media de ingresos)
+- Cuando representan casos extremos pero reales que el modelo debe considerar
 
-4. **Drift de atribución de características**:
-   - También una característica de Clarify
-   - Mide si el impacto de cada característica en tus resultados está cambiando con el tiempo
+#### 7.3.2. Considerar el impacto en el negocio
 
-## 16. Partial Dependence Plots (PDPs), Shapley values, y SHAP
+Siempre evalúa el impacto en el resultado final:
+- ¿Cómo afecta la inclusión o exclusión de outliers al objetivo del modelo?
+- ¿Qué implicaciones tiene para las decisiones de negocio?
 
-### 16.1 Explicabilidad en SageMaker Clarify
+### 7.4. Ejemplo Práctico: Distribución de Ingresos
 
-El examen AWS Machine Learning - Specialty espera que tengas un buen nivel de conocimiento sobre cómo funciona SageMaker Clarify. Vamos a explorar más a fondo las herramientas de explicabilidad que proporciona.
+Consideremos un conjunto de datos que representa ingresos anuales con un valor medio de aproximadamente $27,000. Si añadimos un solo billonario (con ingresos de $1,000,000,000), esto distorsiona completamente la distribución:
 
-### 16.2 Partial Dependence Plots (PDPs)
+1. **Distribución original**: Centrada alrededor de $27,000
+2. **Distribución con outlier**: La mayoría de los datos se comprimen en un pequeño segmento del gráfico, mientras que el billonario crea una enorme distorsión
+3. **Distribución después de eliminar outliers**: Al eliminar valores que están a más de 2 desviaciones estándar, se recupera una distribución más representativa
 
-Los Partial Dependence Plots (PDPs) o Gráficos de Dependencia Parcial son una herramienta que proporciona SageMaker Clarify para:
+Este ejemplo ilustra cómo un solo valor extremo puede afectar dramáticamente análisis estadísticos como la media.
 
-- Mostrar la dependencia de la respuesta objetivo predicha en un conjunto de características de entrada
-- Visualizar cómo afecta una característica específica a las predicciones del modelo
+### 7.5. Enfoques Alternativos
 
-#### 16.2.1 Interpretación de un PDP
+#### 7.5.1. Transformación en lugar de eliminación
 
-En un PDP:
-- El eje X representa los valores de una característica (agrupados en rangos, similar a un histograma)
+En lugar de eliminar outliers, se pueden aplicar transformaciones que reduzcan su impacto:
+- Transformación logarítmica
+- Escalado robusto (usando medianas y rangos intercuartiles)
+- Winsorización (recortar valores extremos a un percentil específico)
+
+#### 7.5.2. Tratamiento separado
+
+Otra opción es modelar los outliers por separado:
+- Crear modelos específicos para datos "normales" y para outliers
+- Utilizar técnicas de modelado que sean robustas a outliers
+- Implementar reglas de negocio específicas para casos extremos
+
+---
+
+## Resumen para el Examen
+
+### Conceptos Estadísticos Clave
+- **Varianza (σ²)**: Promedio de las diferencias al cuadrado respecto a la media
+- **Desviación Estándar (σ)**: Raíz cuadrada de la varianza, medida de dispersión
+
+### Métodos para Identificar Outliers
+
+| Método | Descripción | Ventajas | Cuándo usar |
+|--------|-------------|----------|-------------|
+| **Desviación Estándar** | Identifica valores a más de N desviaciones estándar de la media | Simple, intuitivo | Datos con distribución aproximadamente normal |
+| **Rango Intercuartil (IQR)** | Utiliza Q1, Q3 y define outliers como valores fuera de [Q1-1.5×IQR, Q3+1.5×IQR] | Robusto frente a valores extremos | Datos sesgados o no normalmente distribuidos |
+| **Random Cut Forest** | Algoritmo de AWS para detectar anomalías | Escalable, funciona en streaming | Servicios AWS (QuickSight, Kinesis, SageMaker) |
+
+### Decisiones sobre Outliers
+- **Eliminar cuando**: Son errores, no son parte del fenómeno estudiado, distorsionan excesivamente
+- **Mantener cuando**: Son parte legítima de los datos, el objetivo requiere incluirlos
+- **Alternativas**: Transformar datos, modelar outliers por separado
+
+### AWS y Outliers
+- El algoritmo **Random Cut Forest** es la solución preferida de AWS para la detección de outliers
+- Disponible en múltiples servicios como QuickSight, Kinesis Analytics y SageMaker
+
+**Consejo para el examen**: Si ves preguntas sobre detección de outliers en servicios AWS, busca opciones que mencionen Random Cut Forest, ya que es la solución preferida de Amazon para este propósito. Recuerda también que la decisión de eliminar outliers debe tomarse con responsabilidad y depende del contexto específico del problema que estás tratando de resolver. El método más apropiado (desviación estándar, IQR, etc.) dependerá de la distribución de tus datos.
+
+
+## 8. Binning, Transforming, Encoding, Scaling, and Shuffling
+
+Durante el proceso de feature engineering, existen varias técnicas adicionales que pueden mejorar significativamente el rendimiento de los modelos de machine learning. Estas técnicas ayudan a transformar los datos originales en formatos más adecuados para los algoritmos de aprendizaje.
+
+### 8.1. Binning (Discretización)
+
+#### 8.1.1. Concepto básico
+El binning es una técnica que transforma datos numéricos continuos en datos categóricos discretos, agrupando valores en rangos o "bins" (contenedores).
+
+**Ejemplo práctico**:
+- Datos originales: Edades exactas (22.5, 31.7, 25.3, 45.8...)
+- Datos transformados: Grupos de edad (20-29, 30-39, 40-49...)
+
+#### 8.1.2. Razones para usar binning
+- **Manejo de incertidumbre**: Reduce el impacto de pequeños errores de medición
+- **Simplificación de datos**: Facilita el análisis y la interpretación
+- **Compatibilidad con algoritmos**: Algunos modelos trabajan mejor con datos categóricos
+- **Reducción de ruido**: Mitiga el impacto de fluctuaciones menores
+
+#### 8.1.3. Quantile Binning (Discretización por cuantiles)
+Una variante específica del binning que asegura que cada bin contenga aproximadamente el mismo número de muestras.
+
+**Características principales**:
+- Asegura una distribución uniforme de datos entre categorías
+- Útil cuando se busca balance entre grupos
+- Menos sensible a valores atípicos que el binning por rangos iguales
+
+**Ejemplo**:
+Si tenemos 1,000 registros y queremos 4 bins con quantile binning, cada bin contendrá aproximadamente 250 registros, independientemente del rango de valores que abarque.
+
+### 8.2. Transforming (Transformación)
+
+#### 8.2.1. Concepto básico
+La transformación consiste en aplicar funciones matemáticas a las características para modificar su distribución o escala, haciendo que sean más adecuadas para los algoritmos de ML.
+
+#### 8.2.2. Tipos comunes de transformaciones
+- **Logarítmica**: Útil para datos con distribución exponencial
+- **Raíz cuadrada**: Menos drástica que la logarítmica para valores extremos
+- **Potencias**: Elevar los datos a diferentes potencias
+- **Box-Cox**: Familia de transformaciones que incluye logaritmos y potencias
+
+#### 8.2.3. Caso de estudio: YouTube
+YouTube, en su sistema de recomendaciones, utiliza transformaciones para capturar relaciones no lineales:
+- Para cada característica numérica X (por ejemplo, tiempo desde que se vio un video):
+  - Incluyen X (valor original)
+  - Incluyen X² (valor al cuadrado)
+  - Incluyen √X (raíz cuadrada)
+
+Este enfoque permite al sistema aprender tanto funciones superlineales como sublineales, mejorando la calidad de las recomendaciones.
+
+#### 8.2.4. Beneficios de la transformación
+- **Linearización**: Convertir relaciones no lineales en lineales
+- **Normalización**: Hacer que distribuciones sesgadas sean más simétricas
+- **Captura de diferentes comportamientos**: Identificar relaciones complejas en los datos
+
+![Ejemplo de transformación logarítmica](https://ejemplo.com/imagen-transformacion.png)
+*La transformación logarítmica puede convertir una relación exponencial (línea verde) en una relación lineal, facilitando el trabajo de muchos algoritmos.*
+
+### 8.3. Encoding (Codificación)
+
+#### 8.3.1. Concepto básico
+La codificación transforma datos categóricos en formatos numéricos que pueden ser utilizados por algoritmos de machine learning.
+
+#### 8.3.2. One-Hot Encoding
+Una técnica popular especialmente para deep learning, donde cada categoría se convierte en una columna binaria (0 o 1).
+
+**Proceso**:
+1. Identificar todas las categorías posibles
+2. Crear una columna nueva para cada categoría
+3. Para cada registro, asignar 1 en la columna correspondiente a su categoría y 0 en las demás
+
+**Ejemplo**: Codificación de dígitos (0-9) para reconocimiento de escritura a mano
+- Número original: 8
+- Representación One-Hot: [0,0,0,0,0,0,0,0,1,0]
+  - El 1 está en la novena posición (índice 8)
+  - Todas las demás posiciones tienen 0
+
+**Aplicación en Deep Learning**:
+- Las neuronas de entrada suelen activarse (1) o no activarse (0)
+- No podemos simplemente alimentar el número 8 a una neurona
+- El one-hot encoding permite representar categorías de manera que las redes neuronales puedan procesarlas efectivamente
+
+#### 8.3.3. Otras técnicas de codificación
+- **Label Encoding**: Asigna un número entero a cada categoría
+- **Target Encoding**: Reemplaza categorías por la media de la variable objetivo para esa categoría
+- **Binary Encoding**: Convierte el número de la categoría a binario y crea columnas para cada bit
+
+### 8.4. Scaling (Escalado)
+
+#### 8.4.1. Concepto básico
+El escalado ajusta los valores numéricos a un rango específico para evitar que características con magnitudes mayores dominen el modelo.
+
+#### 8.4.2. Importancia del escalado
+La mayoría de los algoritmos de ML son sensibles a la escala de las características:
+- Sin escalado, las características con valores grandes (ej. ingreso: $50,000) tendrían más influencia que las características con valores pequeños (ej. edad: 35)
+- Las redes neuronales funcionan mejor con datos centrados alrededor de cero
+
+**Ejemplo práctico**:
+- Características originales: Ingreso ($50,000), Edad (35)
+- Sin escalado: El ingreso tendría aproximadamente 1,400 veces más peso que la edad
+- Con escalado: Ambas características tendrían rangos comparables
+
+#### 8.4.3. Técnicas comunes de escalado
+- **Min-Max Scaling**: Escala los datos al rango [0,1] o [-1,1]
+- **Normalización Z-score**: Transforma los datos para tener media 0 y desviación estándar 1
+- **Robust Scaling**: Usa medianas y rangos intercuartiles, menos sensible a outliers
+
+#### 8.4.4. Implementación en Python
+La biblioteca scikit-learn proporciona herramientas como `MinMaxScaler` para facilitar el escalado.
+
+**Consideración importante**: Si estás prediciendo valores numéricos, recuerda invertir el escalado para obtener predicciones en la escala original.
+
+### 8.5. Shuffling (Aleatorización)
+
+#### 8.5.1. Concepto básico
+El shuffling consiste en aleatorizar el orden de los datos antes de entrenar un modelo para eliminar cualquier sesgo relacionado con el orden de recolección.
+
+#### 8.5.2. Importancia del shuffling
+- Elimina patrones temporales que podrían afectar el aprendizaje
+- Previene que el modelo "memorice" secuencias específicas
+- Mejora la generalización del modelo
+
+#### 8.5.3. Casos de uso
+- **Series temporales**: Cuando no queremos que el modelo aprenda el orden cronológico
+- **Procesamiento por lotes**: Para asegurar que cada lote sea representativo del conjunto total
+- **Validación cruzada**: Para asegurar que las particiones sean aleatorias
+
+#### 8.5.4. Impacto práctico
+Muchos proyectos de ML han experimentado mejoras significativas simplemente por implementar el shuffling de datos antes del entrenamiento.
+
+---
+
+## Resumen para el Examen
+
+### Técnicas Clave de Feature Engineering
+
+| Técnica | Descripción | Casos de Uso | Consideraciones |
+|---------|-------------|--------------|-----------------|
+| **Binning** | Transforma datos numéricos en categorías | Reducir ruido, manejar incertidumbre | Puede perder información |
+| **Quantile Binning** | Crea bins con igual número de muestras | Cuando se necesita balance entre categorías | Mantiene distribución uniforme |
+| **Transforming** | Aplica funciones matemáticas para modificar distribuciones | Linearizar relaciones, normalizar datos | La transformación depende de la distribución |
+| **One-Hot Encoding** | Convierte categorías en vectores binarios | Necesario para deep learning con datos categóricos | Aumenta dimensionalidad |
+| **Scaling** | Ajusta valores a rangos comparables | Cuando las características tienen diferentes escalas | La mayoría de algoritmos lo requieren |
+| **Shuffling** | Aleatoriza el orden de los datos | Eliminar sesgos de recolección | Casi siempre beneficioso |
+
+### Puntos Clave a Recordar
+- **Binning**: Transforma datos numéricos a categóricos; quantile binning asegura igual número de muestras por bin
+- **Transforming**: Las transformaciones como logaritmos pueden linearizar relaciones y mejorar el rendimiento
+- **One-Hot Encoding**: Esencial para convertir categorías en formato utilizable por redes neuronales
+- **Scaling**: Crítico para la mayoría de algoritmos, evita que características con valores grandes dominen
+- **Shuffling**: Simple pero efectivo, puede mejorar dramáticamente los resultados
+
+**Consejo para el examen**: Presta especial atención al one-hot encoding y su aplicación en deep learning, ya que es un concepto fundamental. Recuerda también que, aunque técnicas como el binning pueden simplificar los datos, generalmente implican una pérdida de información, por lo que su uso debe justificarse (como manejar la incertidumbre en mediciones). Para el escalado, comprende que es necesario para casi todos los algoritmos excepto árboles de decisión, y que necesitas revertir el escalado si predices valores numéricos.
+
+
+## 9. SageMaker AI Overview
+
+### 9.1. Introducción a Amazon SageMaker
+
+Amazon SageMaker es el servicio integral de AWS diseñado para el desarrollo, entrenamiento y despliegue de modelos de machine learning. Aunque puede utilizarse para aplicaciones de IA generativa, SageMaker tiene un alcance más amplio, abarcando todo el espectro de algoritmos de machine learning tradicionales y deep learning.
+
+#### 9.1.1. Alcance y características principales
+SageMaker está diseñado para manejar el ciclo de vida completo del machine learning:
+- Obtención y preparación de datos
+- Entrenamiento de modelos
+- Evaluación de rendimiento
+- Despliegue y monitoreo en producción
+
+Esta plataforma unificada permite a los científicos de datos y desarrolladores trabajar con eficiencia en proyectos de ML, sin tener que preocuparse por gestionar la infraestructura subyacente.
+
+### 9.2. Arquitectura de Entrenamiento y Despliegue
+
+El flujo de trabajo en SageMaker sigue un proceso estructurado que podemos visualizar de la siguiente manera:
+
+#### 9.2.1. Componentes del despliegue de modelos
+- **Cliente/Aplicación**: Aplicación externa que solicita predicciones
+- **Endpoints**: Puntos de acceso para comunicarse con el modelo desplegado
+- **Modelo desplegado**: Instancia del modelo en ejecución que procesa las solicitudes
+- **Artefactos del modelo**: Componentes almacenados en S3 que contienen los parámetros aprendidos
+- **Código de inferencia**: Código (generalmente almacenado en ECR - Elastic Container Registry) que implementa cómo el modelo realiza predicciones
+
+#### 9.2.2. Componentes del entrenamiento de modelos
+- **Código de entrenamiento**: Almacenado en ECR, define cómo se entrena el modelo
+- **Datos de entrenamiento**: Almacenados en S3, son los datos utilizados para entrenar el modelo
+- **Proceso de entrenamiento**: Ejecuta el código de entrenamiento sobre los datos para producir artefactos del modelo
+
+#### 9.2.3. Flujo de trabajo completo
+1. El código de entrenamiento consume datos desde S3
+2. El proceso de entrenamiento produce artefactos del modelo
+3. Estos artefactos se combinan con el código de inferencia para crear un modelo desplegable
+4. El modelo se despliega a través de endpoints
+5. Las aplicaciones cliente acceden al modelo mediante estos endpoints
+
+### 9.3. Métodos de Interacción con SageMaker
+
+SageMaker ofrece múltiples formas de interactuar con la plataforma, adaptándose a diferentes preferencias y necesidades:
+
+#### 9.3.1. SageMaker Notebooks
+- Basados en Jupyter Notebooks pero ejecutados en instancias EC2
+- Incluyen acceso integrado a S3
+- Vienen con bibliotecas preinstaladas como scikit-learn, Spark, TensorFlow y PySpark
+- Ofrecen acceso a modelos incorporados de SageMaker
+- Permiten orquestar todo el ciclo de vida mediante código Python:
+  - Procesamiento de datos
+  - Entrenamiento de modelos
+  - Ajuste de hiperparámetros
+  - Despliegue de modelos
+
+#### 9.3.2. Interfaz de Consola AWS
+- Permite configurar trabajos de entrenamiento sin escribir código
+- Ofrece acceso a algoritmos incorporados
+- Facilita la selección de orígenes de datos
+- Permite configurar y monitorear despliegues
+- Ideal para usuarios que prefieren interfaces gráficas a la programación
+
+### 9.4. Dominios de SageMaker AI
+
+Un concepto fundamental en SageMaker es el "dominio", que actúa como contenedor organizativo para todos los recursos y actividades.
+
+#### 9.4.1. Definición y componentes
+Un dominio de SageMaker AI incluye:
+- **Volumen EFS compartido**: Sistema de archivos compartido para todo el dominio
+- **Lista de usuarios autorizados**: Personas con acceso al dominio
+- **Configuraciones**: Incluye políticas y configuraciones de red (VPC)
+
+#### 9.4.2. Perfiles de usuario
+Dentro de cada dominio existen perfiles de usuario que:
+- Representan a usuarios individuales dentro del dominio
+- Poseen aplicaciones personales (como instancias de SageMaker Studio)
+- Tienen directorios EFS privados para trabajo individual
+- Pueden acceder a recursos compartidos en el dominio
+
+#### 9.4.3. Espacios compartidos
+Los dominios también incluyen:
+- Directorios EFS compartidos para colaboración entre usuarios
+- Aplicaciones IDE compartidas (SageMaker Studio)
+- Recursos que pueden ser utilizados por todos los usuarios del dominio
+
+### 9.5. Configuración de Red en SageMaker
+
+La configuración de red es un aspecto importante de los dominios de SageMaker que afecta la seguridad y conectividad.
+
+#### 9.5.1. Configuración predeterminada
+Por defecto, un dominio SageMaker utiliza dos VPCs:
+- **VPC gestionada por SageMaker**: Para tráfico hacia/desde Internet
+- **VPC propia del cliente**: Para tráfico cifrado hacia el volumen EFS
+
+Para la VPC del cliente, se deben especificar:
+- Subredes (generalmente todas las disponibles)
+- Grupos de seguridad apropiados
+
+#### 9.5.2. Configuración "VPC only"
+Como alternativa, se puede seleccionar la opción "VPC only" al crear el dominio:
+- Todo el tráfico pasa únicamente por la VPC del cliente
+- Permite mayor control sobre la conectividad
+- Posibilita restringir accesos según necesidades específicas
+
+### 9.6. Organización de Recursos en SageMaker
+
+SageMaker organiza sus recursos de manera jerárquica:
+
+**Dominio**
+↓
+**Perfiles de Usuario**
+↓
+**Aplicaciones Personales**
+
+Adicionalmente, los dominios contienen:
+- **Recursos compartidos**: Accesibles para todos los usuarios
+- **Espacios compartidos**: Áreas colaborativas con sus propias aplicaciones
+
+---
+
+## Resumen para el Examen
+
+### Conceptos Clave de SageMaker
+
+| Componente | Descripción | Propósito |
+|------------|-------------|-----------|
+| **SageMaker** | Servicio integral de ML en AWS | Abarca todo el ciclo de vida de machine learning |
+| **Dominio** | Unidad organizativa principal | Contiene usuarios, aplicaciones y configuraciones |
+| **Perfiles de Usuario** | Representación de usuarios individuales | Gestiona aplicaciones y espacios personales |
+| **Notebooks** | Entornos Jupyter en EC2 | Desarrollo y orquestación de flujos de ML |
+| **Endpoints** | Puntos de acceso al modelo | Permiten a aplicaciones solicitar predicciones |
+| **VPC** | Redes virtuales asociadas | Gestionan el tráfico interno y externo |
+
+### Arquitectura de SageMaker
+- **Entrenamiento**: Código (ECR) + Datos (S3) → Artefactos del modelo (S3)
+- **Despliegue**: Artefactos (S3) + Código de inferencia (ECR) → Endpoints
+- **Inferencia**: Aplicación → Endpoints → Modelo desplegado → Predicciones
+
+### Dominio de SageMaker AI
+- Requiere un volumen EFS compartido
+- Incluye usuarios autorizados y configuraciones de red
+- Puede configurarse con acceso a Internet o solo VPC
+- Organiza usuarios y recursos en una jerarquía lógica
+
+**Consejo para el examen**: Presta especial atención a la arquitectura de entrenamiento y despliegue, ya que muestra cómo diferentes servicios de AWS (S3, ECR, etc.) interactúan con SageMaker. También es importante entender el concepto de dominio como unidad organizativa en SageMaker, y las implicaciones de las diferentes configuraciones de VPC (predeterminada vs. "VPC only") en términos de seguridad y accesibilidad.
+
+
+## 10. Data Processing, Training, and Deployment with SageMaker AI
+
+Amazon SageMaker proporciona un entorno integral para el ciclo de vida completo del desarrollo de modelos de machine learning, desde la preparación de datos hasta el despliegue y monitoreo. A continuación, exploraremos en detalle cada fase de este proceso.
+
+### 10.1. Preparación de Datos en SageMaker
+
+La fase de preparación de datos es crucial para el éxito de cualquier proyecto de machine learning, y SageMaker ofrece diversas opciones para gestionar esta etapa.
+
+#### 10.1.1. Fuentes de datos
+SageMaker puede ingerir datos de múltiples fuentes:
+- **Amazon S3**: Principal método de almacenamiento para conjuntos de datos
+- **FSx for Lustre**: Para procesamiento de datos a gran escala que requiere alto rendimiento
+- **Amazon Athena**: Para datos almacenados en lagos de datos
+- **Amazon EMR**: Para procesamiento distribuido
+- **Amazon Redshift**: Para datos almacenados en data warehouses
+- **Amazon Keyspaces**: Para datos de bases de datos NoSQL
+- **Otras fuentes de datos** compatibles con AWS
+
+#### 10.1.2. Formatos de datos
+El formato ideal depende del algoritmo específico que se utilizará:
+- **RecordIO**: Formato optimizado para ciertos algoritmos de SageMaker
+- **Protobuf**: Eficiente para serialización de datos estructurados
+- **Formatos columnares**: Como Parquet o ORC, optimizados para análisis
+
+#### 10.1.3. Integración con herramientas de procesamiento
+SageMaker se integra con diversas herramientas para el procesamiento de datos:
+- **Apache Spark**: Para procesamiento distribuido
+- **Bibliotecas Python**: scikit-learn, NumPy, pandas, etc.
+- **Contenedores personalizados**: Para implementar lógica de procesamiento propia
+
+#### 10.1.4. Flujo de procesamiento
+El proceso de preparación de datos en SageMaker sigue generalmente estos pasos:
+1. Se obtienen los datos desde S3 u otra fuente
+2. Se inicia un contenedor de procesamiento (propio o integrado en SageMaker)
+3. El contenedor procesa los datos según la lógica definida
+4. Los datos procesados se almacenan en S3 para su uso posterior en entrenamiento
+
+### 10.2. Entrenamiento de Modelos en SageMaker
+
+Una vez que los datos están preparados, SageMaker facilita el entrenamiento de modelos con diferentes opciones y niveles de personalización.
+
+#### 10.2.1. Creación de trabajos de entrenamiento
+Para entrenar un modelo en SageMaker:
+1. Se crea un trabajo de entrenamiento
+2. Se especifica la ubicación de los datos procesados (URL de S3)
+3. Se asignan recursos computacionales (tipo y número de instancias)
+4. Se define la ubicación de salida para los artefactos del modelo
+5. Se proporciona la ruta al código de entrenamiento (generalmente en ECR)
+
+#### 10.2.2. Opciones de recursos computacionales
+El hardware asignado afecta significativamente el rendimiento y costo:
+- Diferentes algoritmos tienen diferentes recomendaciones de hardware
+- Algunos algoritmos funcionan mejor con una sola instancia
+- Otros se benefician de entrenamiento distribuido en múltiples instancias
+- SageMaker ofrece instancias optimizadas para diversos casos de uso (CPU, GPU, memoria)
+
+#### 10.2.3. Opciones de entrenamiento
+SageMaker ofrece múltiples opciones para el código de entrenamiento:
+
+| Opción | Descripción | Casos de uso |
+|--------|-------------|------------|
+| **Algoritmos integrados** | Implementaciones optimizadas por AWS | Escenarios comunes de ML |
+| **Apache Spark ML** | Biblioteca de ML de Spark | Procesamiento distribuido |
+| **Frameworks populares** | TensorFlow, PyTorch, MXNet | Deep learning personalizado |
+| **Scikit-learn** | Biblioteca popular de ML para Python | ML tradicional |
+| **RL Estimator** | Reforzamiento | Aprendizaje por refuerzo |
+| **XGBoost** | Implementación optimizada | Problemas de clasificación/regresión |
+| **Hugging Face** | Modelos preentrenados | NLP, IA generativa |
+| **Chainer** | Framework de deep learning | Investigación y experimentación |
+| **Docker personalizado** | Contenedor totalmente personalizable | Casos de uso específicos |
+| **Modelos del Marketplace** | Soluciones comerciales | Aplicaciones específicas de industria |
+
+#### 10.2.4. Almacenamiento de modelos entrenados
+Al finalizar el entrenamiento:
+- Los artefactos del modelo se guardan automáticamente en la ubicación S3 especificada
+- Estos artefactos contienen los parámetros aprendidos y la estructura del modelo
+- Son utilizados posteriormente para el despliegue e inferencia
+
+### 10.3. Despliegue de Modelos en SageMaker
+
+Tras entrenar un modelo, SageMaker ofrece diversas opciones para desplegarlo y utilizarlo para realizar predicciones.
+
+#### 10.3.1. Modos de despliegue
+Dependiendo de los requisitos, SageMaker ofrece diferentes modos de despliegue:
+
+- **Endpoint en tiempo real**: 
+  - Proporciona predicciones bajo demanda con baja latencia
+  - Escalable según la demanda
+  - Ideal para aplicaciones interactivas
+
+- **Transformación por lotes (Batch Transform)**:
+  - Procesa conjuntos completos de datos a la vez
+  - No requiere endpoint persistente
+  - Más eficiente para predicciones en grandes volúmenes de datos no urgentes
+
+#### 10.3.2. Características avanzadas de despliegue
+SageMaker proporciona capacidades adicionales para optimizar y gestionar despliegues:
+
+- **Inference Pipelines**: 
+  - Orquestación de flujos de inferencia complejos
+  - Permite encadenar múltiples modelos y pasos de preprocesamiento
+
+- **SageMaker Neo**: 
+  - Optimiza modelos para despliegue en dispositivos edge
+  - Útil cuando se requiere procesamiento local sin conexión a la nube
+  - Reduce latencia eliminando la necesidad de comunicación con la nube
+
+- **Elastic Inference**: 
+  - Acelera la inferencia adjuntando capacidad de GPU fraccional
+  - Reduce costos manteniendo buen rendimiento
+
+- **Auto Scaling**: 
+  - Ajusta automáticamente el número de instancias según la carga
+  - Optimiza costos y rendimiento
+
+- **Shadow Testing**:
+  - Evalúa nuevos modelos contra modelos desplegados
+  - Detecta problemas antes del despliegue completo
+  - Minimiza riesgos al introducir nuevos modelos
+
+#### 10.3.3. Gestión de despliegues
+SageMaker facilita la gestión segura de modelos en producción:
+
+- **Despliegue controlado**: Introducción gradual de nuevos modelos
+- **Monitoreo de rendimiento**: Seguimiento de métricas en tiempo real
+- **Capacidad de rollback**: Reversión rápida a versiones anteriores si se detectan problemas
+- **Versionado de modelos**: Gestión de diferentes versiones del mismo modelo
+
+#### 10.3.4. Flujo de despliegue
+El proceso típico de despliegue en SageMaker:
+1. Recuperar artefactos del modelo desde S3
+2. Seleccionar el modo de despliegue apropiado
+3. Configurar recursos computacionales para la inferencia
+4. Implementar estrategias de monitoreo y escalado
+5. Establecer mecanismos de reversión en caso de problemas
+
+### 10.4. Ciclo de vida completo en SageMaker
+
+SageMaker está diseñado para facilitar todo el ciclo de vida de machine learning, proporcionando una experiencia integrada:
+
+1. **Preparación de datos**:
+   - Ingestión desde múltiples fuentes
+   - Procesamiento con herramientas familiares
+   - Almacenamiento optimizado para entrenamiento
+
+2. **Entrenamiento de modelos**:
+   - Algoritmos integrados o personalizados
+   - Escalabilidad según necesidades computacionales
+   - Gestión eficiente de recursos
+
+3. **Despliegue y monitoreo**:
+   - Opciones flexibles de despliegue
+   - Herramientas avanzadas de optimización
+   - Capacidades robustas de gestión de producción
+
+Esta integración reduce la fricción entre fases, permitiendo a los equipos de data science centrarse en crear valor a partir de sus datos, en lugar de gestionar infraestructura.
+
+---
+
+## Resumen para el Examen
+
+### Preparación de Datos en SageMaker
+- **Fuentes principales**: S3 (más común), FSx for Lustre (alto rendimiento)
+- **Formatos**: Dependen del algoritmo (RecordIO, Protobuf, formatos columnares)
+- **Integración**: Apache Spark, bibliotecas Python (scikit-learn, NumPy, pandas)
+- **Otras fuentes**: Athena, EMR, Redshift, Keyspaces
+
+### Entrenamiento de Modelos
+- **Recursos**: Configurables según necesidades (instancias optimizadas para ML)
+- **Almacenamiento**: Artefactos guardados en S3
+- **Opciones de entrenamiento**:
+  - Algoritmos integrados de SageMaker
+  - Frameworks populares (TensorFlow, PyTorch)
+  - Hugging Face para modelos preentrenados y LLMs
+  - Contenedores personalizados para máxima flexibilidad
+
+### Despliegue de Modelos
+- **Modos**: Endpoints en tiempo real vs. Batch Transform
+- **Características avanzadas**:
+  - Inference Pipelines para flujos complejos
+  - SageMaker Neo para dispositivos edge
+  - Elastic Inference para aceleración
+  - Auto Scaling para optimización de recursos
+  - Shadow Testing para validación de modelos
+
+**Consejo para el examen**: Recuerda las diferentes opciones de despliegue y sus casos de uso. Comprende especialmente la diferencia entre endpoints en tiempo real (para predicciones bajo demanda) y Batch Transform (para procesamiento por lotes). También es importante conocer las diversas fuentes de datos compatibles con SageMaker y entender que el formato óptimo depende del algoritmo específico que se utilizará.
+
+## 11. Amazon SageMaker Ground Truth and Label Generation
+
+### 11.1. Introducción a SageMaker Ground Truth
+
+Amazon SageMaker Ground Truth es un servicio de AWS diseñado para solucionar uno de los desafíos más comunes en proyectos de machine learning: la obtención de datos etiquetados de alta calidad. Este servicio facilita la creación de conjuntos de datos etiquetados mediante el uso de anotadores humanos.
+
+#### 11.1.1. Propósito y aplicación
+Ground Truth aborda el problema de los datos no etiquetados o con etiquetas faltantes, que es un aspecto fundamental del feature engineering. Aunque se ubica en esta categoría principalmente por su relación con datos faltantes, su utilidad se extiende a:
+
+- Creación de conjuntos de entrenamiento etiquetados
+- Generación de etiquetas para datos existentes
+- Verificación y mejora de etiquetas existentes
+- Obtención de información que solo puede ser inferida por humanos
+
+#### 11.1.2. Casos de uso comunes
+El escenario más típico para el uso de Ground Truth es la clasificación de imágenes, donde se requiere:
+- Identificar objetos en imágenes
+- Clasificar imágenes en categorías
+- Marcar ubicaciones específicas dentro de imágenes
+- Segmentar objetos en imágenes
+
+Otros casos de uso incluyen etiquetado de texto, análisis de sentimiento, clasificación de documentos y etiquetado de audio.
+
+### 11.2. Funcionamiento de SageMaker Ground Truth
+
+#### 11.2.1. El proceso de etiquetado
+SageMaker Ground Truth funciona siguiendo estos pasos básicos:
+
+1. Se envían datos no etiquetados al servicio
+2. Ground Truth distribuye los trabajos a anotadores humanos
+3. Los anotadores etiquetan los datos según instrucciones específicas
+4. Las etiquetas se recopilan, verifican y consolidan
+5. El conjunto de datos etiquetado resultante puede usarse para entrenar modelos
+
+#### 11.2.2. Aprendizaje activo
+Lo que distingue a Ground Truth de otros servicios de etiquetado es su capacidad de aprendizaje activo:
+
+- A medida que los humanos etiquetan datos, Ground Truth entrena un modelo en segundo plano
+- Este modelo aprende patrones de las etiquetas humanas ya realizadas
+- Con el tiempo, el modelo identifica qué elementos puede etiquetar con confianza
+- Solo los casos ambiguos o de baja confianza se envían a los anotadores humanos
+- Este enfoque reduce progresivamente la necesidad de intervención humana
+
+**Beneficio clave**: Reducción de hasta un 70% en los costos de etiquetado, ya que se minimiza el trabajo humano necesario.
+
+### 11.3. Opciones de Fuerza Laboral
+
+Ground Truth ofrece flexibilidad en cuanto a quién realiza el trabajo de etiquetado, con tres opciones principales:
+
+#### 11.3.1. Amazon Mechanical Turk
+- Una fuerza laboral global distribuida
+- Miles de trabajadores disponibles 24/7
+- Costos relativamente bajos
+- Ideal para tareas generales que no requieren conocimientos especializados
+- Mejor para datos no sensibles
+
+#### 11.3.2. Fuerza laboral privada
+- Empleados de la propia organización
+- Mayor seguridad para datos sensibles
+- Conocimiento especializado del dominio
+- Control total sobre quién accede a los datos
+- Ideal para información confidencial o especializada
+
+#### 11.3.3. Proveedores externos
+- Empresas especializadas en etiquetado de datos
+- Personal capacitado para tareas específicas
+- Mayor calidad y consistencia en las etiquetas
+- Experiencia en dominios particulares
+- Más costoso pero con mejores garantías de calidad
+
+### 11.4. Alternativas a la Etiquetación Humana
+
+Además del etiquetado humano, existen otras formas de generar etiquetas o características para conjuntos de datos:
+
+#### 11.4.1. Amazon Rekognition
+- Servicio de AWS para reconocimiento de imágenes
+- Modelos pre-entrenados para identificar objetos comunes
+- Puede utilizarse para generar automáticamente etiquetas para imágenes
+- Útil como complemento o alternativa a etiquetas humanas
+- Especialmente eficaz para categorías generales y objetos comunes
+
+#### 11.4.2. Amazon Comprehend
+- Servicio de AWS para análisis de texto
+- Puede generar:
+  - Clasificación de temas
+  - Análisis de sentimiento
+  - Extracción de entidades
+  - Frases clave
+- Útil tanto para generar etiquetas como nuevas características
+- Permite enriquecer conjuntos de datos textuales
+
+#### 11.4.3. Otras técnicas
+- Cualquier modelo pre-entrenado relevante para el dominio
+- Técnicas de aprendizaje no supervisado para generar agrupaciones
+- Transfer learning desde modelos existentes
+- Combinación de múltiples fuentes de etiquetado
+
+### 11.5. SageMaker Ground Truth Plus
+
+Para organizaciones que buscan una solución completamente gestionada, AWS ofrece Ground Truth Plus:
+
+#### 11.5.1. Características principales
+- Solución "llave en mano" para proyectos de etiquetado
+- Gestionada por expertos de AWS
+- Configuración y gestión del flujo de trabajo completo
+- Selección y administración de anotadores
+
+#### 11.5.2. Proceso de implementación
+1. Completar un formulario describiendo las necesidades del proyecto
+2. Los expertos de AWS contactan para discutir detalles y precios
+3. AWS configura y gestiona todo el proceso de etiquetado
+4. Se puede seguir el progreso a través del portal de proyecto
+5. Los datos etiquetados se entregan en S3 cuando están completos
+
+#### 11.5.3. Ventajas y consideraciones
+- **Ventajas**: Mínimo esfuerzo de gestión, experiencia especializada, alta calidad
+- **Consideraciones**: Precio no divulgado públicamente (presumiblemente más alto), menor control directo sobre el proceso
+
+### 11.6. Integración con el Flujo de Trabajo de ML
+
+Ground Truth no es solo una herramienta independiente, sino que se integra perfectamente en el flujo de trabajo de machine learning:
+
+#### 11.6.1. Como parte del feature engineering
+- Genera etiquetas faltantes (variable objetivo)
+- Puede crear nuevas características mediante anotaciones humanas
+- Enriquece conjuntos de datos con información difícil de inferir automáticamente
+
+#### 11.6.2. En el ciclo de vida de ML
+- Preparación de datos: Creación de conjuntos de entrenamiento etiquetados
+- Entrenamiento: Los datos etiquetados alimentan directamente los algoritmos
+- Evaluación: Comparación de predicciones con etiquetas de alta calidad
+- Mejora continua: Nuevos datos pueden etiquetarse para mejorar modelos existentes
+
+---
+
+## Resumen para el Examen
+
+### SageMaker Ground Truth - Conceptos Clave
+- **Propósito**: Servicio para obtener etiquetas de alta calidad mediante anotadores humanos
+- **Diferenciador**: Implementa aprendizaje activo para reducir costos hasta en un 70%
+- **Proceso**: A medida que se etiquetan datos, un modelo aprende para minimizar la intervención humana
+- **Beneficio principal**: Solo los casos ambiguos se envían a humanos, optimizando costos y tiempo
+
+### Opciones de Anotadores
+| Opción | Descripción | Cuando usarla |
+|--------|-------------|---------------|
+| **Mechanical Turk** | Trabajadores globales a bajo costo | Datos no sensibles, tareas generales |
+| **Fuerza laboral privada** | Empleados de la organización | Datos confidenciales, conocimiento especializado |
+| **Proveedores externos** | Empresas especializadas en etiquetado | Alta calidad, dominios específicos |
+
+### Alternativas y Complementos
+- **Amazon Rekognition**: Para etiquetado automático de imágenes
+- **Amazon Comprehend**: Para análisis y etiquetado de texto
+- **Modelos pre-entrenados**: Como alternativa o complemento al etiquetado humano
+
+### Ground Truth Plus
+- Solución totalmente gestionada por expertos de AWS
+- Mínimo esfuerzo pero presumiblemente mayor costo
+- Ideal para proyectos grandes o complejos donde la gestión interna sería costosa
+
+**Consejo para el examen**: Recuerda que lo que distingue a Ground Truth de simples servicios de etiquetado es su capacidad de aprendizaje activo, que reduce progresivamente la necesidad de intervención humana. También es importante entender su papel en el feature engineering: no solo se trata de generar etiquetas (targets) sino que también puede usarse para crear nuevas características para el entrenamiento de modelos.
+
+
+## 12. Amazon Mechanical Turk
+
+### 12.1. Origen e Historia
+
+Amazon Mechanical Turk debe su nombre a un famoso artefacto histórico del siglo XVIII que tiene una relevancia sorprendente para el servicio actual.
+
+#### 12.1.1. El Turco original
+- Creado en la década de 1770
+- Era un supuesto "autómata" capaz de jugar ajedrez
+- En realidad, era una ilusión: un maestro de ajedrez humano se ocultaba dentro del mecanismo
+- El operador humano controlaba los movimientos del "robot", creando la ilusión de una máquina inteligente
+- Fue una sensación en su época, jugando contra figuras notables de la historia
+
+#### 12.1.2. Analogía con el servicio actual
+El nombre refleja perfectamente el concepto del servicio: tecnología que parece automatizada pero que en realidad está impulsada por inteligencia humana oculta tras bambalinas.
+
+### 12.2. Descripción del Servicio
+
+Amazon Mechanical Turk (MTurk) es una plataforma de crowdsourcing que permite acceder a una fuerza laboral humana distribuida globalmente para realizar tareas que las computadoras aún no pueden hacer eficazmente.
+
+#### 12.2.1. Concepto básico
+- Mercado de crowdsourcing para tareas humanas simples
+- Proporciona acceso a una fuerza laboral virtual distribuida
+- Los trabajadores ("Turkers") realizan pequeñas tareas a cambio de pagos
+- Las tareas son generalmente sencillas pero requieren inteligencia humana
+
+#### 12.2.2. Funcionamiento
+1. Los solicitantes (empresas, investigadores, etc.) publican tareas denominadas HITs (Human Intelligence Tasks)
+2. Establecen el precio por tarea y criterios de calificación para los trabajadores
+3. Trabajadores de todo el mundo aceptan y completan estas tareas
+4. El solicitante revisa el trabajo y aprueba el pago
+
+#### 12.2.3. Aspecto económico
+- El solicitante establece la recompensa por cada tarea
+- Los precios pueden variar desde centavos hasta varios dólares por tarea
+- Ejemplo: etiquetar 10 millones de imágenes a 10 centavos cada una costaría un millón de dólares
+- Los costos totales dependen de la complejidad de la tarea y la velocidad requerida
+
+### 12.3. Casos de Uso
+
+Mechanical Turk tiene numerosas aplicaciones en diversos campos, especialmente en aquellos relacionados con inteligencia artificial y machine learning.
+
+#### 12.3.1. Casos de uso generales
+- **Clasificación de imágenes**: Etiquetar objetos o conceptos en fotografías
+- **Recolección de datos**: Buscar y verificar información específica
+- **Procesamiento de negocios**: Transcripción, categorización, verificación
+- **Encuestas y estudios**: Investigación de mercado, estudios académicos
+- **Moderación de contenido**: Identificar contenido inapropiado
+
+#### 12.3.2. Aplicaciones en AI/ML
+- **Creación de conjuntos de datos de entrenamiento**: Etiquetar datos para entrenar modelos de ML
+- **Validación de resultados**: Verificar la precisión de las predicciones de los modelos
+- **Revisión de recomendaciones**: Evaluar la calidad de sistemas de recomendación
+- **Anotación de datos complejos**: Etiquetar entidades en textos, segmentar objetos en imágenes
+
+### 12.4. Integración con Servicios AWS de AI/ML
+
+Mechanical Turk se integra con varios servicios de AWS orientados a la inteligencia artificial y el machine learning.
+
+#### 12.4.1. Integración con Amazon A2I
+Amazon Augmented AI (A2I) permite incorporar revisión humana a las predicciones de modelos de ML:
+- Configuración de flujos de trabajo de revisión humana
+- Envío automático de predicciones de baja confianza a MTurk
+- Mejora continua de modelos con feedback humano
+
+#### 12.4.2. Integración con SageMaker Ground Truth
+Como vimos en el tema anterior, Ground Truth utiliza MTurk como una de sus opciones de fuerza laboral:
+- Etiquetado de datos para entrenamiento de modelos
+- Verificación de etiquetas existentes
+- Creación de conjuntos de datos de alta calidad
+
+### 12.5. Experiencia del Trabajador
+
+Comprender la experiencia de los trabajadores de MTurk ayuda a diseñar tareas más efectivas y obtener resultados de mayor calidad.
+
+#### 12.5.1. Interfaz del trabajador
+- Los trabajadores acceden a un panel que muestra HITs disponibles
+- Pueden ver la descripción, recompensa y tiempo estimado para cada tarea
+- Filtran tareas según sus habilidades e intereses
+- Aceptan tareas y las completan a través de formularios web
+
+#### 12.5.2. Factores de éxito
+Para obtener resultados de calidad y atraer a los mejores trabajadores:
+- **Compensación justa**: Establecer recompensas acordes a la complejidad y tiempo
+- **Instrucciones claras**: Proporcionar directrices precisas y ejemplos
+- **Interfaz intuitiva**: Diseñar HITs fáciles de entender y completar
+- **Reputación**: Mantener una buena reputación entre los trabajadores (aprobando trabajo rápidamente, pagando justamente)
+
+### 12.6. Consideraciones Prácticas
+
+Al utilizar Mechanical Turk para proyectos de AI/ML, hay varios aspectos importantes a considerar.
+
+#### 12.6.1. Calidad del trabajo
+- Implementar verificaciones de control de calidad
+- Utilizar tareas redundantes (asignar la misma tarea a múltiples trabajadores)
+- Calificar a los trabajadores y filtrar por calificaciones
+
+#### 12.6.2. Aspectos éticos
+- Pagar salarios justos por el tiempo invertido
+- Respetar la privacidad de los datos
+- Ser transparente sobre el propósito del trabajo
+- Considerar el impacto de la automatización en los trabajadores
+
+#### 12.6.3. Limitaciones
+- Variabilidad en la calidad del trabajo
+- Posibles sesgos culturales o demográficos
+- No adecuado para tareas que requieren alta especialización
+- Consideraciones de confidencialidad con datos sensibles
+
+---
+
+## Resumen para el Examen
+
+### Amazon Mechanical Turk - Conceptos Clave
+- **Definición**: Plataforma de crowdsourcing que proporciona acceso a una fuerza laboral humana global para realizar tareas que las computadoras aún no pueden hacer eficazmente
+- **Origen del nombre**: Basado en un "autómata" de ajedrez del siglo XVIII que en realidad era operado por un humano oculto
+- **Modelo de trabajo**: Los solicitantes publican HITs (Human Intelligence Tasks) y los trabajadores los completan a cambio de pagos
+
+### Principales Casos de Uso en ML
+- Etiquetado de conjuntos de datos para entrenamiento de modelos
+- Validación de resultados de modelos
+- Revisión de recomendaciones de sistemas
+- Anotación de datos complejos (texto, imágenes, audio)
+
+### Integración con AWS
+- **Amazon A2I**: Para revisión humana de predicciones de baja confianza
+- **SageMaker Ground Truth**: Como fuente de fuerza laboral para etiquetado de datos
+
+### Consideraciones Importantes
+- El costo depende del precio por tarea y el volumen de datos
+- La calidad del trabajo puede variar y requiere controles
+- Adecuado para tareas simples, repetitivas que requieren inteligencia humana
+- Ofrece escalabilidad para procesar grandes volúmenes de datos
+
+**Consejo para el examen**: Recuerda que Mechanical Turk es una de las tres opciones de fuerza laboral disponibles en SageMaker Ground Truth (junto con fuerza laboral privada y proveedores externos). Es la opción más accesible y escalable para tareas generales, pero puede no ser apropiada para datos sensibles o que requieren conocimiento especializado. Comprende también que el costo total depende directamente del precio establecido por tarea y el volumen de datos, lo que puede hacer que proyectos grandes sean costosos a pesar del bajo precio unitario.
+
+
+## 13. SageMaker Data Wrangler
+
+### 13.1. Introducción a SageMaker Data Wrangler
+
+SageMaker Data Wrangler representa una de las herramientas más directamente aplicables al data engineering dentro del ecosistema de SageMaker. Está diseñado específicamente para preparar datos para proyectos de machine learning de manera eficiente y visual.
+
+#### 13.1.1. ¿Qué es Data Wrangler?
+- Una herramienta ETL (Extract, Transform, Load) integrada en SageMaker Studio
+- Similar a AWS Glue Data Studio, pero optimizada para flujos de trabajo de machine learning
+- Un generador de código que produce las transformaciones necesarias para preparar datos
+
+#### 13.1.2. Capacidades principales
+SageMaker Data Wrangler ofrece cuatro funcionalidades esenciales:
+
+1. **Importación de datos**: Conexión con múltiples fuentes de datos
+2. **Visualización de datos**: Exploración y análisis de la distribución de los datos
+3. **Transformación de datos**: Aplicación de más de 300 transformaciones predefinidas
+4. **Evaluación con Quick Model**: Entrenamiento rápido de modelos para validar transformaciones
+
+### 13.2. Arquitectura e Integración
+
+Data Wrangler funciona como un puente entre las fuentes de datos y los diferentes servicios de procesamiento de SageMaker.
+
+#### 13.2.1. Fuentes de datos compatibles
+- **Amazon S3**: Para datos almacenados en buckets
+- **AWS Lake Formation**: Para datos en lagos de datos
+- **Amazon Athena**: Para consultas SQL en S3
+- **SageMaker Feature Store**: Para reutilización de características
+- **Amazon Redshift**: Para datos en data warehouses
+- **Fuentes JDBC**: Para conexión con bases de datos externas y SaaS
+- **Otras fuentes**: Como Databricks u otras plataformas externas
+
+#### 13.2.2. Destinos de exportación
+Una vez procesados los datos, pueden exportarse a:
+- **SageMaker Processing**: Para entrenamiento de modelos
+- **SageMaker Pipelines**: Como parte de flujos de trabajo automatizados
+- **SageMaker Feature Store**: Para almacenar características procesadas
+- **Jupyter Notebooks**: Como código Python ejecutable
+
+#### 13.2.3. Naturaleza del resultado
+Es crucial entender que Data Wrangler no ejecuta directamente las transformaciones en su pipeline de producción, sino que:
+- Genera código Python que implementa las transformaciones definidas
+- Este código puede integrarse en notebooks o pipelines
+- Funciona como un generador de código para el flujo de procesamiento de datos
+
+### 13.3. Flujo de Trabajo con Data Wrangler
+
+A continuación, se detalla un flujo de trabajo típico utilizando SageMaker Data Wrangler.
+
+#### 13.3.1. Importación de datos
+1. Se accede a la pestaña "Import" en la interfaz de SageMaker Studio
+2. Se selecciona la fuente de datos (por ejemplo, un archivo CSV en S3)
+3. Se especifica la ubicación del archivo y su formato
+4. Data Wrangler muestra automáticamente una vista previa de los datos
+5. Se pueden verificar y modificar los tipos de datos inferidos
+
+#### 13.3.2. Visualización y análisis
+- Permite examinar la distribución de cada característica
+- Ayuda a identificar valores atípicos o distribuciones inesperadas
+- Proporciona estadísticas descriptivas de los datos
+- Funciona como verificación de sanidad antes del entrenamiento
+
+#### 13.3.3. Transformación de datos
+Data Wrangler ofrece múltiples opciones para transformar datos:
+
+- **Transformaciones predefinidas**: Más de 300 operaciones comunes
+- **Custom Transforms**: Posibilidad de usar código personalizado en:
+  - Pandas
+  - PySpark
+  - PySpark SQL
+
+**Ejemplo de transformación**: One-hot encoding para variables categóricas
+- Convierte categorías (como clases 1, 2, 3) en columnas binarias individuales
+- Esencial para muchos algoritmos de machine learning que requieren entradas numéricas
+- Mejora la capacidad del modelo para interpretar datos categóricos
+
+#### 13.3.4. Evaluación con Quick Model
+Una característica distintiva de Data Wrangler es la capacidad de evaluar transformaciones:
+
+- Permite entrenar rápidamente un modelo con un subconjunto de datos
+- Evalúa el impacto de las transformaciones en el rendimiento del modelo
+- Facilita la experimentación con diferentes preparaciones de datos
+- Ayuda a optimizar el pipeline de datos específicamente para el modelo destino
+
+#### 13.3.5. Exportación del flujo de datos
+Una vez definidas las transformaciones:
+1. Se exporta el flujo como código Python en un Jupyter Notebook
+2. Este código implementa todo el proceso ETL definido visualmente
+3. Puede integrarse en pipelines de entrenamiento o inferencia
+4. Permite aplicar las mismas transformaciones a nuevos datos consistentemente
+
+### 13.4. Ejemplo Práctico: Dataset del Titanic
+
+El ejemplo mostrado en la transcripción utiliza el conocido dataset del Titanic para ilustrar el flujo de trabajo.
+
+#### 13.4.1. Importación del dataset
+- Archivo CSV que contiene información de pasajeros del Titanic
+- Incluye datos como clase de pasajero, supervivencia, nombre, edad, etc.
+- La interfaz permite previsualizar los datos y verificar tipos
+
+#### 13.4.2. Visualización de distribuciones
+- Se examina la distribución de edades para verificar que sea razonable
+- Permite detectar anomalías o sesgos en los datos antes de proceder
+
+#### 13.4.3. Transformación: One-hot encoding
+- Se aplica "encode categorical" a la columna "class"
+- Convierte la clase (1, 2, 3) en tres columnas binarias
+- Más adecuado para modelos de ML que no manejan bien valores categóricos directamente
+
+#### 13.4.4. Evaluación y exportación
+- Se puede utilizar Quick Model para evaluar el impacto de las transformaciones
+- Finalmente, se exporta el flujo como código Python ejecutable
+
+### 13.5. Solución de Problemas Comunes
+
+Al trabajar con Data Wrangler, pueden surgir algunos problemas típicos que conviene conocer.
+
+#### 13.5.1. Problemas de permisos
+- Asegurarse de que el usuario de SageMaker Studio tenga los roles IAM apropiados
+- Verificar que las fuentes de datos permitan acceso a Data Wrangler
+- La política "AmazonSageMakerFullAccess" suele ser necesaria para las fuentes de datos
+
+#### 13.5.2. Límites de recursos
+Si aparece un error como "The following instance type is not available", probablemente indica un problema de cuota:
+1. Acceder a Service Quotas en la consola AWS
+2. Navegar a Amazon SageMaker → Studio Kernel Gateway apps
+3. Solicitar un aumento de cuota para instancias "ml.m5.4xlarge"
+4. Esperar la aprobación del aumento de cuota
+
+---
+
+## Resumen para el Examen
+
+### SageMaker Data Wrangler - Conceptos Clave
+- **Definición**: Herramienta ETL visual integrada en SageMaker Studio para preparación de datos de ML
+- **Función principal**: Generador de código Python que implementa transformaciones definidas visualmente
+- **Capacidades**: Importación, visualización, transformación y evaluación de datos
+
+### Arquitectura y Flujo
+| Fase | Descripción | Características |
+|------|-------------|-----------------|
+| **Importación** | Conexión con fuentes de datos | S3, Athena, Redshift, Feature Store, JDBC |
+| **Visualización** | Exploración de distribuciones | Histogramas, estadísticas, detección de anomalías |
+| **Transformación** | Aplicación de operaciones a los datos | +300 transformaciones predefinidas, código personalizado |
+| **Evaluación** | Quick Model para validar transformaciones | Entrenamiento rápido para verificar impacto |
+| **Exportación** | Generación de código Python | Jupyter Notebooks, integración con procesos |
+
+### Puntos Importantes
+- Data Wrangler NO ejecuta las transformaciones en producción; genera código que implementa esas transformaciones
+- La funcionalidad Quick Model permite evaluar el impacto de las transformaciones en el modelo antes de implementarlas
+- Admite código personalizado en Pandas, PySpark y PySpark SQL para transformaciones no estándar
+- Es fundamental verificar permisos IAM y cuotas de servicio para evitar problemas comunes
+
+**Consejo para el examen**: Recuerda que Data Wrangler es principalmente una herramienta de generación de código, no un servicio que ejecuta transformaciones en tiempo real. Entiende la diferencia entre Data Wrangler y otros servicios como Glue (Data Wrangler está optimizado específicamente para preparación de datos de ML). Presta atención a la funcionalidad Quick Model, que es única y permite evaluar rápidamente el impacto de las transformaciones en el rendimiento del modelo.
+
+
+## 14. SageMaker Model Monitor and SageMaker Clarify
+
+### 14.1. Introducción a SageMaker Model Monitor
+
+Los modelos de machine learning desplegados en producción no mantienen necesariamente su rendimiento de forma constante a lo largo del tiempo. La naturaleza de los datos puede cambiar, aparecen nuevos patrones, o surgen problemas inesperados que pueden afectar la calidad de las predicciones. SageMaker Model Monitor es una solución diseñada para abordar estos desafíos.
+
+#### 14.1.1. Propósito y funcionalidades principales
+SageMaker Model Monitor es un servicio que permite:
+- Monitorear de forma continua los modelos desplegados en producción
+- Detectar desviaciones en la calidad de los datos o del modelo
+- Recibir alertas automáticas cuando se identifican anomalías
+- Visualizar cambios y tendencias en los datos a lo largo del tiempo
+
+#### 14.1.2. Beneficios clave
+- **Detección proactiva**: Identifica problemas antes de que afecten significativamente el rendimiento del modelo
+- **Sin código**: Puede configurarse y gestionarse visualmente desde SageMaker Studio
+- **Automatización**: Programa tareas de monitoreo que se ejecutan sin intervención manual
+- **Integración completa**: Trabaja con otros servicios AWS como CloudWatch para notificaciones
+
+### 14.2. Detección de Data Drift
+
+Uno de los problemas más comunes en modelos desplegados es el data drift, donde las características de los datos de entrada cambian con el tiempo.
+
+#### 14.2.1. Tipos de data drift que puede detectar
+- **Cambios en distribuciones estadísticas**: Variaciones en promedios, desviaciones estándar u otras propiedades
+- **Anomalías y outliers**: Valores atípicos que no encajan en los patrones esperados
+- **Características faltantes**: Datos incompletos o atributos ausentes
+- **Nuevas características**: Aparición de atributos que no estaban presentes en los datos de entrenamiento
+
+#### 14.2.2. Ejemplo práctico
+En un modelo para evaluar solvencia crediticia, SageMaker Model Monitor podría detectar:
+- Cambios en la distribución de edades o ingresos de los solicitantes
+- Valores atípicos en la cantidad solicitada
+- Información faltante en campos importantes
+- Nuevos campos de datos que no se consideraron en el entrenamiento original
+
+### 14.3. SageMaker Clarify
+
+SageMaker Clarify complementa a Model Monitor proporcionando explicabilidad y detección de sesgos en modelos de machine learning.
+
+#### 14.3.1. Funcionalidades principales
+- **Detección de sesgos**: Identifica desequilibrios en las predicciones entre diferentes grupos
+- **Explicabilidad del modelo**: Determina qué características tienen mayor influencia en las predicciones
+- **Transparencia**: Ayuda a entender por qué un modelo toma determinadas decisiones
+
+#### 14.3.2. Métricas de sesgo
+SageMaker Clarify ofrece diversas métricas para medir sesgos:
+- **Kullback-Leibler divergence**: Mide la diferencia entre distribuciones de probabilidad
+- **Otras métricas especializadas**: Incluye múltiples medidas para diferentes tipos de sesgos y aplicaciones
+
+Estas métricas permiten identificar si el modelo está favoreciendo o perjudicando sistemáticamente a ciertos grupos en sus predicciones.
+
+### 14.4. Tipos de Monitoreo
+
+SageMaker Model Monitor ofrece varios tipos específicos de monitoreo adaptados a diferentes aspectos del rendimiento del modelo.
+
+#### 14.4.1. Monitoreo de calidad de datos
+- **Definición**: Compara las propiedades estadísticas de los datos de producción con una línea base establecida
+- **Configuración**: Requiere definir qué constituye "calidad" para el caso específico
+- **Detección**: Alerta cuando las características de los datos se desvían significativamente de la línea base
+
+#### 14.4.2. Monitoreo de calidad del modelo
+- **Definición**: Evalúa la precisión y rendimiento general del modelo en producción
+- **Método**: Compara las predicciones del modelo con una línea base de precisión esperada
+- **Integración con ground truth**: Puede comparar las predicciones con etiquetas generadas por humanos
+
+#### 14.4.3. Monitoreo de deriva de sesgo
+- **Definición**: Detecta si el sesgo en las predicciones cambia con el tiempo
+- **Integración**: Trabaja con SageMaker Clarify para identificar sesgos en diferentes grupos
+- **Aplicación**: Especialmente importante en modelos con impacto en decisiones que afectan a personas
+
+#### 14.4.4. Monitoreo de atribución de características
+- **Definición**: Supervisa cómo cambia la importancia relativa de las características en las predicciones
+- **Propósito**: Identifica si el modelo está comenzando a depender de características diferentes
+- **Beneficio**: Ayuda a entender si el comportamiento fundamental del modelo está cambiando
+
+### 14.5. Arquitectura e Implementación
+
+#### 14.5.1. Almacenamiento y seguridad
+- Los datos de monitoreo se almacenan en Amazon S3
+- Están protegidos con las políticas de seguridad estándar de AWS
+- Solo los usuarios autorizados pueden acceder a la información de monitoreo
+
+#### 14.5.2. Programación y ejecución
+- Las tareas de monitoreo se configuran mediante "monitoring schedules"
+- Pueden ejecutarse con la frecuencia necesaria (horaria, diaria, semanal, etc.)
+- El proceso es automatizado una vez configurado
+
+#### 14.5.3. Integración con CloudWatch
+- Las métricas recopiladas se envían a Amazon CloudWatch
+- Las alarmas de CloudWatch pueden configurarse para notificar cuando se detecten anomalías
+- Las notificaciones pueden enviarse por email, SMS, o desencadenar acciones correctivas automatizadas
+
+#### 14.5.4. Visualización
+SageMaker Model Monitor ofrece múltiples opciones de visualización:
+- Visualizaciones integradas en SageMaker Studio
+- Integración con TensorBoard para análisis detallados
+- Compatibilidad con herramientas de BI como Amazon QuickSight y Tableau
+
+### 14.6. Flujo de Trabajo Típico
+
+Un flujo de trabajo común con SageMaker Model Monitor incluye:
+
+1. **Establecer líneas base**: Definir los parámetros normales de datos y rendimiento del modelo
+2. **Configurar monitoreo**: Seleccionar tipos de monitoreo y programar ejecuciones
+3. **Implementar alertas**: Configurar notificaciones en CloudWatch para desviaciones
+4. **Revisar métricas**: Analizar tendencias y patrones en los datos monitoreados
+5. **Tomar acciones correctivas**: Reentrenar modelos o ajustar pipelines de datos cuando sea necesario
+
+### 14.7. Acciones Correctivas
+
+Cuando Model Monitor detecta problemas, las acciones correctivas habituales incluyen:
+
+- **Reentrenamiento del modelo**: Actualizar el modelo con datos más recientes
+- **Auditoría de datos**: Investigar y corregir problemas en las fuentes de datos
+- **Ajuste de características**: Modificar el conjunto de características utilizadas
+- **Revisión de sesgos**: Implementar técnicas para mitigar sesgos identificados
+- **Actualización de líneas base**: Ajustar los umbrales de monitoreo si han cambiado las expectativas
+
+---
+
+## Resumen para el Examen
+
+### SageMaker Model Monitor - Conceptos Clave
+- **Propósito**: Monitorea modelos ML en producción para detectar degradación de rendimiento
+- **Funcionamiento**: Compara métricas de datos y modelo con líneas base establecidas
+- **Automatización**: Programa tareas de monitoreo sin necesidad de código
+- **Alertas**: Integra con CloudWatch para notificar sobre anomalías
+
+### Tipos de Monitoreo
+
+| Tipo | Descripción | Detecta |
+|------|-------------|---------|
+| **Calidad de Datos** | Evalúa propiedades estadísticas de datos entrantes | Cambios en distribuciones, outliers, datos faltantes |
+| **Calidad del Modelo** | Evalúa precisión y rendimiento | Degradación de precisión, comparación con ground truth |
+| **Deriva de Sesgo** | Monitorea desequilibrios entre grupos | Cambios en patrones de sesgo (con SageMaker Clarify) |
+| **Atribución de Características** | Supervisa importancia de características | Cambios en qué características influyen en predicciones |
+
+### SageMaker Clarify
+- **Propósito**: Proporciona explicabilidad y detección de sesgos
+- **Integración**: Trabaja con Model Monitor para supervisar sesgos a lo largo del tiempo
+- **Métricas**: Incluye Kullback-Leibler divergence y otras medidas de sesgo
+- **Valor**: Ayuda a entender por qué un modelo hace determinadas predicciones
+
+### Aspectos Prácticos
+- Datos de monitoreo almacenados de forma segura en S3
+- Programación flexible mediante monitoring schedules
+- Visualización disponible en SageMaker Studio, TensorBoard, QuickSight o Tableau
+- Acciones correctivas incluyen reentrenamiento o auditoría de datos
+
+**Consejo para el examen**: Recuerda la diferencia entre los cuatro tipos de monitoreo (calidad de datos, calidad del modelo, deriva de sesgo y atribución de características) y cómo se integran con otros servicios AWS. Comprende que Model Monitor es principalmente una herramienta de detección que envía métricas a CloudWatch, pero las acciones correctivas (como reentrenar el modelo) deben implementarse por separado.
+
+
+## 15. Partial Dependence Plots (PDPs), Shapley values, and SHAP
+
+El examen AWS Certified Machine Learning - Associate espera un conocimiento detallado sobre el funcionamiento de SageMaker Clarify y sus métodos de interpretabilidad de modelos. En esta sección exploraremos las herramientas y técnicas fundamentales que Clarify utiliza para explicar las predicciones de los modelos.
+
+### 15.1. Partial Dependence Plots (PDPs)
+
+Los gráficos de dependencia parcial (PDPs) son una herramienta visual clave para entender cómo influyen las características individuales en las predicciones de un modelo.
+
+#### 15.1.1. Definición y propósito
+Un PDP muestra la dependencia de la variable objetivo predicha respecto a un conjunto de características de entrada, manteniendo todas las demás características constantes.
+
+#### 15.1.2. Interpretación
+- El eje X representa los valores de una característica específica (generalmente agrupados en rangos)
 - El eje Y muestra los valores de predicción del modelo
-- La curva muestra el efecto que tiene la característica en las predicciones del modelo
+- La línea o puntos indican cómo varía la predicción al cambiar únicamente esa característica
 
-Por ejemplo, en un PDP que muestra la dependencia en la edad:
-- Podríamos observar que después de los 50 años, las predicciones del modelo permanecen constantes
-- Esto podría indicar que la edad es un factor importante hasta cierto punto (50 años)
-- También podría revelar un problema potencial, como una falta de datos suficientes para edades superiores a 50 años
-- Esta información podría señalar un desequilibrio en los datos de entrenamiento
+#### 15.1.3. Ejemplo práctico
+Como se muestra en la transcripción, si analizamos un PDP para la característica "edad":
+- Podemos ver que las predicciones del modelo cambian significativamente hasta aproximadamente los 50 años
+- Después de los 50 años, las predicciones permanecen relativamente constantes
+- Esto podría indicar que la edad es un factor importante para el modelo, pero con un "punto de inflexión" alrededor de los 50 años
 
-Además de los gráficos, SageMaker Clarify también proporciona distribuciones de datos para cada rango de valores, lo que te permite verificar si existe algún desequilibrio de clases en tus datos.
+#### 15.1.4. Identificación de desbalances
+Los PDPs pueden revelar posibles problemas en los datos de entrenamiento:
+- Un "plateau" o meseta después de cierto valor podría indicar escasez de datos en ese rango
+- Cambios abruptos pueden señalar áreas donde el modelo podría estar sobreajustando
+- Patrones inusuales pueden alertar sobre sesgos potenciales
 
-### 16.3 Shapley Values
+#### 15.1.5. Datos adicionales disponibles
+Además de los gráficos visuales, SageMaker Clarify también proporciona:
+- Distribuciones de datos para cada rango de valores
+- Datos numéricos subyacentes a través de la API
+- Estadísticas que pueden revelar desbalances de clases en los datos
 
-Los Shapley values son la técnica que SageMaker Clarify utiliza internamente para determinar el impacto que cada característica tiene en la salida del modelo.
+### 15.2. Shapley Values
 
-#### 16.3.1 Origen y concepto
+Los valores de Shapley son el fundamento teórico sobre el que operan muchas de las explicaciones de Clarify.
 
-- Proviene de la teoría de juegos y se ha adaptado al machine learning
-- La idea básica es eliminar características individuales una por una y medir el impacto que esto tiene en el modelo
-- Esto permite cuantificar la contribución de cada característica a la predicción final
+#### 15.2.1. Origen e idea fundamental
+- Concepto originado en la teoría de juegos, aplicado al machine learning
+- Asigna a cada característica una "contribución" a la predicción final
+- Responde a la pregunta: "¿Cuánto contribuye cada característica al resultado?"
 
-#### 16.3.2 Desafíos computacionales
+#### 15.2.2. Metodología conceptual
+El enfoque básico de los valores de Shapley es:
+1. Remover una característica del modelo
+2. Medir el impacto que tiene esta remoción en la predicción
+3. Repetir este proceso con diferentes combinaciones de características
+4. Asignar un valor de importancia basado en estos cambios
 
-El cálculo directo de Shapley values se vuelve computacionalmente intensivo cuando hay muchas características, ya que requiere probar todas las posibles combinaciones de características.
+#### 15.2.3. Desafío computacional
+El cálculo exacto de los valores de Shapley presenta desafíos:
+- Requiere evaluar todas las posibles combinaciones de características
+- Con n características, hay 2^n combinaciones posibles
+- Para modelos con muchas características, esto se vuelve computacionalmente prohibitivo
 
-### 16.4 SHAP (SHapley Additive exPlanations)
+### 15.3. SHAP (SHapley Additive exPlanations)
 
-Debido a los desafíos computacionales de los Shapley values tradicionales, SageMaker Clarify utiliza SHAP:
+Debido a la complejidad computacional de los valores de Shapley exactos, SageMaker Clarify utiliza una aproximación llamada SHAP.
 
-- SHAP significa "Shapley Additive exPlanations" (Explicaciones Aditivas de Shapley)
-- Es una técnica de aproximación que permite calcular los Shapley values de manera más eficiente
-- Proporciona información útil sobre el impacto de las características individuales sin tener que hacer un cálculo exhaustivo
+#### 15.3.1. Definición y propósito
+SHAP (Shapley Additive exPlanations) es:
+- Un método de aproximación para calcular valores de Shapley
+- Una técnica más eficiente que mantiene las propiedades teóricas importantes
+- Una forma de hacer que la explicabilidad sea factible en modelos complejos
 
-SHAP ayuda a identificar:
-- Qué características tienen mayor impacto en las predicciones del modelo
-- Propiedades no intencionadas que podrían indicar problemas en los datos
-- Posibles sesgos en el modelo
+#### 15.3.2. Ventajas de SHAP
+- Proporciona explicaciones locales (para predicciones individuales)
+- Ofrece también explicaciones globales (importancia general de características)
+- Mantiene consistencia y precisión en comparación con los valores de Shapley exactos
+- Es computacionalmente más eficiente
 
-### 16.5 Asymmetric Shapley Values para Series Temporales
+#### 15.3.3. Implementación en SageMaker Clarify
+SageMaker Clarify utiliza SHAP internamente para:
+- Determinar la importancia relativa de las características
+- Identificar posibles sesgos en el modelo
+- Proporcionar explicaciones comprensibles de las predicciones
 
-Si estás trabajando con datos de series temporales, SageMaker Clarify utiliza una variante llamada Asymmetric Shapley values:
+### 15.4. Asymmetric Shapley Values para Series Temporales
 
-- Diseñada específicamente para datos de series temporales
-- Determina la contribución de las características de entrada en cada paso temporal hacia las predicciones o pronósticos
-- Además de medir el impacto de cada característica individualmente, también mide el impacto a lo largo del tiempo
-- Es más complejo que el SHAP tradicional porque considera la dimensión temporal adicional
+Cuando trabajamos con datos de series temporales, se requiere un enfoque especializado debido a la naturaleza secuencial de los datos.
 
-Estos conceptos (PDPs, Shapley values, SHAP, y Asymmetric Shapley values) son términos clave que necesitas conocer para entender cómo funciona la explicabilidad en Amazon SageMaker Clarify.
+#### 15.4.1. Contexto específico
+- Los datos de series temporales presentan dependencias temporales
+- La importancia de una característica puede variar en diferentes puntos temporales
+- Las técnicas estándar no capturan adecuadamente estas dependencias
 
-## 17. SageMaker Feature Store
+#### 15.4.2. Asymmetric Shapley Values
+Para datos de series temporales, SageMaker Clarify utiliza valores de Shapley asimétricos:
+- Evalúan la contribución de las características en cada paso temporal
+- Consideran la importancia acumulativa a lo largo del tiempo
+- Toman en cuenta la dirección temporal (pasado → futuro)
 
-### 17.1 Introducción a Feature Store
+#### 15.4.3. Beneficios para análisis de series temporales
+- Permite entender qué características influyen en cada punto de la predicción
+- Identifica patrones temporales en la importancia de las características
+- Facilita la detección de anomalías o cambios en la influencia de las características a lo largo del tiempo
 
-En este contexto, una "feature" (característica) es una propiedad que se utiliza para entrenar un modelo de machine learning. Por ejemplo, si estás intentando predecir el partido político de alguien basándote en sus características, estas podrían ser su dirección, ingresos, edad, etc.
+### 15.5. Aplicaciones Prácticas en AWS
 
-Las features son esencialmente columnas o campos en una fila donde estás utilizando esas piezas de información para intentar predecir una etiqueta (label) para esa fila. En el ejemplo anterior:
-- Las features serían las propiedades de la persona (dirección, ingresos, edad)
-- La etiqueta que intentamos predecir sería su partido político
+Los métodos de explicabilidad que hemos discutido son fundamentales para varios servicios y casos de uso en AWS.
 
-### 17.2 Necesidad de Feature Store
+#### 15.5.1. Integración con SageMaker Model Monitor
+- Monitoreo de atribución de características basado en valores SHAP
+- Alertas cuando la importancia de las características cambia significativamente
+- Detección de drift en la relación entre características y predicciones
 
+#### 15.5.2. Casos de uso comunes
+- **Cumplimiento regulatorio**: Explicabilidad para sectores regulados como finanzas o salud
+- **Depuración de modelos**: Identificación de características problemáticas
+- **Mejora de modelos**: Enfoque en las características más influyentes
+- **Detección de sesgos**: Identificación de patrones injustos en las predicciones
+
+---
+
+## Resumen para el Examen
+
+### Conceptos Clave
+
+| Concepto | Descripción | Propósito |
+|----------|-------------|-----------|
+| **Partial Dependence Plots (PDPs)** | Gráficos que muestran cómo una característica afecta las predicciones | Visualizar el impacto de características individuales |
+| **Shapley Values** | Concepto de teoría de juegos aplicado a ML para atribución de importancia | Cuantificar la contribución de cada característica |
+| **SHAP** | Método de aproximación para calcular valores de Shapley | Hacer factible la explicabilidad en modelos complejos |
+| **Asymmetric Shapley Values** | Adaptación para datos de series temporales | Explicar predicciones que dependen del tiempo |
+
+### Puntos Importantes para el Examen
+- **PDPs**: Permiten visualizar cómo diferentes valores de una característica influyen en las predicciones del modelo y pueden revelar posibles problemas en los datos de entrenamiento.
+- **Shapley Values**: Son el fundamento teórico de las explicaciones de Clarify, pero su cálculo exacto es computacionalmente costoso para modelos con muchas características.
+- **SHAP**: Es la implementación práctica que SageMaker Clarify utiliza para aproximar los valores de Shapley de manera eficiente.
+- **Asymmetric Shapley Values**: Son específicos para datos de series temporales y evalúan la contribución de características en cada paso temporal.
+
+**Consejo para el examen**: Asegúrate de comprender la relación entre estos conceptos. Los PDPs son herramientas visuales para interpretar el impacto de las características, mientras que los valores de Shapley (aproximados mediante SHAP) son el mecanismo subyacente que cuantifica ese impacto. Para series temporales, recuerda que se utilizan valores de Shapley asimétricos. Estos conceptos son fundamentales para explicar cómo SageMaker Clarify detecta y monitorea sesgos en los modelos.
+
+
+
+## 16. SageMaker Feature Store
+
+### 16.1. Concepto de Features en Machine Learning
+
+Antes de adentrarnos en SageMaker Feature Store, es importante comprender a qué nos referimos con "features" en el contexto de machine learning.
+
+#### 16.1.1. Definición de features
+En machine learning, una feature (característica) es una propiedad o atributo medible utilizado para entrenar un modelo. Conceptualmente, las features son:
+- Columnas o campos en un conjunto de datos
+- Propiedades individuales que describen cada ejemplo o instancia
+- Información que el modelo utiliza para hacer predicciones
+
+#### 16.1.2. Ejemplo práctico
+En un escenario donde intentamos predecir la afiliación política de una persona:
+- **Features**: Dirección, ingresos, edad, etc.
+- **Label (etiqueta)**: Partido político (lo que intentamos predecir)
+
+Las features proporcionan la información que el modelo necesita para aprender patrones y realizar predicciones precisas.
+
+### 16.2. Introducción a SageMaker Feature Store
+
+SageMaker Feature Store es un repositorio centralizado para almacenar, gestionar y reutilizar features para el entrenamiento y la inferencia de modelos de machine learning.
+
+#### 16.2.1. Propósito y necesidad
 Los modelos de machine learning requieren:
-- Acceso rápido a los datos de características
-- Acceso seguro a información que podría ser sensible o personal
-- Organización eficiente de los datos
-- Capacidad para compartir características entre diferentes modelos
+- Acceso rápido a grandes volúmenes de datos
+- Seguridad para información potencialmente sensible
+- Organización efectiva de datos
+- Capacidad para compartir features entre diferentes modelos
 
-Feature Store ayuda a evitar situaciones donde se almacenan las mismas características múltiples veces, permitiendo compartirlas entre diferentes proyectos de machine learning.
+Feature Store resuelve estos desafíos proporcionando un repositorio centralizado y optimizado para features.
 
-### 17.3 Fuentes de datos para Feature Store
+#### 16.2.2. Beneficios clave
+- **Reutilización**: Evita duplicación de features para diferentes modelos
+- **Consistencia**: Garantiza que las mismas features se utilicen en entrenamiento e inferencia
+- **Eficiencia**: Optimiza el acceso y almacenamiento de datos
+- **Gobierno**: Facilita el seguimiento y control de versiones de features
 
-SageMaker Feature Store se sitúa en el centro de un ecosistema donde los datos pueden provenir de diversas fuentes:
+### 16.3. Arquitectura de SageMaker Feature Store
 
+SageMaker Feature Store se sitúa como un componente central en el ecosistema de procesamiento de datos y machine learning.
+
+#### 16.3.1. Posición en el ecosistema AWS
+Feature Store puede recibir datos de múltiples fuentes:
 - SageMaker Studio
 - Pipelines (Step Functions, SageMaker Pipelines, Apache Airflow)
-- EMR
-- AWS Glue
-- SageMaker Processing
+- Procesamiento distribuido (EMR, Glue, SageMaker Processing)
 - Streaming (Kinesis, Kafka)
-- SageMaker Data Wrangler
-- AWS Glue DataBrew
-
-La principal ventaja de Feature Store es la organización de estos datos, independientemente de su origen.
-
-### 17.4 Estructura de Feature Store
-
-Feature Store organiza los datos en lo que se denomina "feature groups" (grupos de características):
-
-- Cada feature group contiene:
-  - Identificadores de registro
-  - Nombres de características
-  - Tiempos de eventos asociados con esa característica
-
-### 17.5 Funcionamiento de Feature Store
-
-SageMaker Feature Store opera en dos modalidades principales:
-
-#### 17.5.1 Mundo de streaming
-- Datos provenientes de Kinesis, MSK, Apache Spark, SageMaker Data Wrangler, etc.
-- Se utiliza la API `PutRecord` para alimentar datos en streaming a Feature Store
-- Feature Store procesa estos datos en tiempo real
-
-#### 17.5.2 Mundo de procesamiento por lotes (batch)
-- Almacenamiento offline en S3
-- Feature Store crea automáticamente un catálogo de datos en AWS Glue para los datos almacenados en S3
-- Se pueden usar herramientas como Amazon Athena o Data Wrangler para trabajar con los datos
-
-### 17.6 Repositorios de Feature Store
-
-Feature Store mantiene dos tipos de repositorios:
-
-1. **Repositorio online**:
-   - Almacenamiento en tiempo real de características
-   - Se accede mediante la API `GetRecord`
-   - Ideal para modelos que necesitan acceso rápido a características
-
-2. **Repositorio offline**:
-   - Almacenamiento en S3 para acceso por lotes
-   - Permite análisis y procesamiento más complejo
-   - Se puede alimentar directamente si no se necesita streaming
-
-### 17.7 Seguridad en Feature Store
-
-Feature Store proporciona varias capas de seguridad:
-
-- Cifrado automático de datos en reposo y en tránsito
-- Compatibilidad con claves maestras de cliente de AWS KMS
-- Control de acceso detallado a través de IAM
-- Posibilidad de asegurar el acceso mediante AWS PrivateLink
-
-## 18. SageMaker Canvas
-
-### 18.1 Visión general
-
-SageMaker Canvas es un entorno de machine learning sin código diseñado principalmente para analistas de negocio. Este tema aparecerá seguramente una o dos veces en el examen AWS Machine Learning - Specialty.
-
-La idea principal es que permite crear modelos de machine learning sin necesidad de escribir código o tener conocimientos profundos en la materia. Es suficiente con proporcionar datos en formato CSV, indicar la columna para la que quieres hacer predicciones, y el sistema se encarga del resto utilizando técnicas de AutoML.
-
-### 18.2 Capacidades principales
-
-SageMaker Canvas ofrece diversas funcionalidades:
-
-- **Unión de conjuntos de datos**: Permite combinar diferentes fuentes de datos
-- **Predicciones**: Puede realizar clasificación o regresión automáticamente
-- **Limpieza automática de datos**: Detecta y maneja valores faltantes, outliers y filas duplicadas sin intervención manual
-- **Machine learning para no expertos**: Diseñado para ser utilizado por personas sin formación técnica en machine learning
-
-### 18.3 Integración con SageMaker Studio
-
-Una característica importante es que se integra con SageMaker Studio:
-
-- Permite compartir modelos y conjuntos de datos con SageMaker Studio
-- Posibilita exportar modelos y datos de entrenamiento desde Canvas a SageMaker Studio
-- Facilita la colaboración entre analistas de negocio e ingenieros de machine learning
-
-### 18.4 Soporte para modelos de IA generativa
-
-SageMaker Canvas ha evolucionado más allá del machine learning tradicional:
-
-- Incorpora soporte para modelos de IA generativa
-- Compatible con los modelos foundation disponibles en Amazon Bedrock y a través de Amazon SageMaker JumpStart
-- Permite el fine-tuning de estos modelos directamente desde la interfaz de Canvas
-- No requiere ser un experto en IA o machine learning para crear aplicaciones de IA generativa
-- Facilita la personalización de modelos foundation con datos propios
-
-En resumen, SageMaker Canvas representa "IA y machine learning para todos", permitiendo que personas sin experiencia técnica aprovechen estas tecnologías de manera intuitiva y efectiva.
-
-## 19. AWS Glue
-
-### 19.1 Introducción a AWS Glue
-
-AWS Glue es un sistema para construir definiciones de tablas y realizar ETL (Extract, Transform, Load - Extracción, Transformación y Carga) de tus datos automáticamente. Es un tema muy importante en el examen AWS Machine Learning - Specialty, ya que ocupa un lugar destacado desde que se trasladó el contenido de machine learning del examen AWS Big Data a su propio examen.
-
-No es necesario conocer todos los detalles de Glue, pero sí es fundamental entender cómo conecta diferentes servicios y cómo se utiliza como parte de aplicaciones más grandes.
-
-### 19.2 Características principales
-
-AWS Glue es un sistema serverless con varias características clave:
-
-- No requiere mantenimiento de infraestructura
-- Maneja automáticamente el descubrimiento y definición de tablas y esquemas
-- Sirve como repositorio central de metadatos para tu data lake
-- Descubre esquemas a partir de datos no estructurados en S3
-- Publica definiciones de tablas para usar con herramientas de análisis como:
-  - Amazon Athena
-  - Amazon Redshift
-  - Amazon EMR
-  - Otras bases de datos SQL
-
-### 19.3 Funcionalidades de AWS Glue
-
-#### 19.3.1 Descubrimiento de esquemas
-El propósito principal de Glue es extraer estructura de tus datos no estructurados. Si tienes datos en un data lake en S3, Glue puede proporcionar un esquema para que puedas consultarlos usando SQL o herramientas similares.
-
-#### 19.3.2 Trabajos ETL personalizados
-Además de descubrir esquemas, Glue puede procesar tus datos mediante trabajos ETL:
-- Pueden ejecutarse en respuesta a eventos (cuando se reciben datos)
-- Pueden programarse para ejecutarse periódicamente
-- Pueden ejecutarse bajo demanda
-- Utilizan Apache Spark internamente
-- Son totalmente gestionados (no necesitas mantener un cluster de Spark)
-
-### 19.4 Glue Crawler y Data Catalog
-
-#### 19.4.1 Glue Crawler
-- Su propósito es escanear datos en S3
-- Infiere esquemas automáticamente basados en los datos
-- A veces necesita algunas pistas para funcionar correctamente
-- Puede programarse para ejecutarse periódicamente
-
-#### 19.4.2 Glue Data Catalog
-- Se alimenta con la información que recoge el Crawler
-- Contiene definiciones de tablas (qué columnas existen, tipos de datos, nombres de columnas)
-- Incluye información sobre la ubicación de los datos
-- Permite que servicios como Redshift, Athena o Hive (en EMR) consulten datos no estructurados en S3 como si fueran datos estructurados
-
-Es importante destacar que los datos originales permanecen donde estaban (generalmente en S3). No se duplican ni se copian a una tabla de base de datos real. Glue simplemente proporciona la "conexión" (el "pegamento" o "glue" en inglés) entre las interfaces de bases de datos relacionales y el data lake no estructurado en S3.
-
-Una vez catalogados, los datos están inmediatamente disponibles para análisis, y pueden visualizarse con herramientas como Amazon QuickSight.
-
-### 19.5 Particiones en S3 y Glue
-
-El trabajo con Glue requiere cierta planificación en la organización de tus datos no estructurados:
-
-- Glue Crawler extraerá particiones basadas en cómo están organizados tus datos en S3
-- Debes pensar anticipadamente sobre cómo consultarás tu data lake
-- La estructura de organización afecta el rendimiento de las consultas
-
-#### 19.5.1 Ejemplo de particionamiento
-
-Imagina que tienes dispositivos que envían datos de sensores a tu sistema cada hora:
-
-**Si consultas principalmente por rangos de tiempo:**
-- Organiza tus buckets S3 como: año/mes/día/dispositivo
-- Esto permite acceder eficientemente a datos de una fecha específica sin tener que procesar información de otras fechas
-
-**Si consultas principalmente por dispositivo:**
-- Organiza tus buckets S3 como: dispositivo/año/mes/día
-- Esto es más eficiente cuando necesitas consultar datos de dispositivos específicos constantemente
-
-En el examen, podrías encontrar preguntas sobre la forma óptima de organizar tus datos en S3 para que Glue pueda extraerlos y presentarlos como particiones adecuadas para tu caso de uso específico.
-
-## 20. AWS Glue Studio
-
-### 20.1 Introducción a AWS Glue Studio
-
-AWS Glue Studio es una característica relativamente nueva en AWS Glue. Aunque es posible que aún no aparezca en el examen AWS Machine Learning - Specialty, es probable que se incluya pronto debido a la gran inversión que AWS está realizando en esta tecnología.
-
-Lo principal que necesitas saber para el examen es qué es AWS Glue Studio y para qué se utiliza.
-
-### 20.2 Propósito y funcionalidades
-
-AWS Glue Studio es una interfaz visual para definir y crear flujos de trabajo ETL, permitiendo:
-
-- Crear flujos de trabajo complejos sin escribir código
-- Configurar procesos paralelos desde la misma fuente
-- Procesar diferentes fuentes en paralelo de distintas maneras
-- Establecer trabajos complejos de forma visual
-
-### 20.3 Componentes principales
-
-#### 20.3.1 Editor visual de trabajos
-- Permite crear "directed acyclic graphs" (DAGs) para flujos de trabajo complejos
-- Soporta diversas fuentes de datos:
-  - Amazon S3
-  - Amazon Kinesis
-  - Apache Kafka
-  - Cualquier fuente JDBC
-
-#### 20.3.2 Transformaciones gráficas
-Desde la interfaz de usuario de Glue Studio, puedes configurar gráficamente:
-- Transformaciones de datos
-- Muestreo de datos
-- Uniones de tablas
-- Filtrado de datos
-- Mapeo y renombrado de campos
-- División de datos
-
-Los resultados de estas transformaciones pueden enviarse a S3 o al Glue Data Catalog.
-
-#### 20.3.3 Particionamiento automático
-AWS Glue Studio soporta particionamiento de forma nativa:
-- Detecta automáticamente datos particionados
-- Acelera el procesamiento en función de las particiones
-
-#### 20.3.4 Panel de control visual
-Proporciona un dashboard para:
-- Visualizar el estado de tus trabajos ETL
-- Monitorear qué trabajos están en ejecución
-- Ver cuánto tiempo llevan ejecutándose
-- Facilitar la solución de problemas
-- Asegurar que los trabajos se ejecutan según lo esperado
-
-### 20.4 Funcionamiento de AWS Glue Studio
-
-AWS Glue Studio ofrece una experiencia de usuario intuitiva:
-
-1. **Creación de trabajos**:
-   - Se accede desde la consola de AWS Glue
-   - Se selecciona "Create and Manage Jobs"
-   - Se elige la fuente de datos (S3, RDS, Redshift, Kinesis, Kafka)
-   - Se selecciona el destino de los resultados (S3 o Glue Data Catalog)
-
-2. **Configuración del flujo de trabajo**:
-   - Se muestra una representación gráfica del flujo de datos
-   - Se pueden configurar transformaciones intermedias
-   - Es posible crear flujos complejos en forma de árbol (DAG)
-   - Se pueden aplicar múltiples transformaciones en paralelo
-
-3. **Tipos de transformaciones disponibles**:
-   - Mapeo
-   - Eliminar campos
-   - Renombrar campos
-   - Unir tablas
-   - Dividir datos
-   - Filtrar registros
-   - Transformaciones personalizadas con código
-
-4. **Monitoreo de trabajos**:
-   - Dashboard de resumen que muestra:
-     - Cantidad de trabajos en ejecución
-     - Trabajos exitosos y fallidos
-     - Tasas de éxito
-     - Uso de recursos
-     - Tipos de trabajos en ejecución
-     - Línea de tiempo de ejecución
-
-Este panel facilita el mantenimiento, la supervisión y la solución de problemas de los trabajos ETL.
-
-### 20.5 Relación con Apache Spark
-
-Es importante notar que la estructura de DAG (Directed Acyclic Graph) en Glue Studio no es coincidencia:
-- AWS Glue ETL utiliza Apache Spark internamente
-- Los DAGs son una forma natural de representar flujos de trabajo en Spark
-- Esta estructura permite el procesamiento paralelo y eficiente de datos
-
-## 21. AWS Glue Data Quality
-
-### 21.1 Introducción a AWS Glue Data Quality
-
-AWS Glue Data Quality es una característica reciente de AWS Glue Studio que permite evaluar automáticamente la calidad de los datos entrantes dentro de un trabajo de Glue. Si los datos violan ciertos parámetros o reglas que configures, puede automáticamente fallar el trabajo o simplemente registrar un evento en CloudWatch.
-
-A partir de 2024, es probable que este tema forme parte del examen AWS Machine Learning - Specialty.
-
-### 21.2 Creación de reglas de calidad de datos
-
-Existen dos formas principales de crear reglas de calidad de datos:
-
-#### 21.2.1 Creación manual de reglas
-- Defines tus propias reglas basadas en el conocimiento de tus datos
-- Utilizas el lenguaje DQDL (Data Quality Definition Language)
-
-#### 21.2.2 Creación automática de reglas
-- Puedes indicar a Glue Data Quality que examine tus datos fuente que sabes que son "buenos"
-- El sistema infiere automáticamente reglas basadas en:
-  - Rangos esperados de los datos
-  - Desviación estándar de valores típicos
-  - Patrones de datos normales
-- Puedes editar las reglas inferidas si no estás de acuerdo con lo que el sistema generó
-
-### 21.3 Integración con trabajos de Glue
-
-Una vez configuradas las reglas de calidad de datos, puedes integrarlas directamente en tus trabajos de Glue:
-- Funcionan como otra etapa de transformación dentro del flujo de trabajo
-- Pueden colocarse en cualquier punto del proceso ETL
-- Se pueden aplicar a datos intermedios o finales
-
-### 21.4 Acciones de respuesta a problemas de calidad
-
-Cuando se detectan problemas de calidad de datos, puedes configurar dos tipos de respuestas:
-
-#### 21.4.1 Fallo del trabajo
-- Si una regla de calidad no se cumple, el trabajo completo puede fallar
-- Esto puede generar falsos positivos si los umbrales están demasiado ajustados
-
-#### 21.4.2 Registro en CloudWatch
-- Alternativa menos disruptiva
-- Reporta los resultados a CloudWatch
-- Te permite interpretar los problemas y actuar según consideres apropiado
-
-### 21.5 Lenguaje DQDL y ejemplos
-
-El Data Quality Definition Language (DQDL) se utiliza para definir las reglas de calidad:
-
-- **Verificación de recuento de filas**: Asegurar que el número de filas está dentro de un rango esperado
-  ```
-  RowCount between min_value and max_value
-  ```
-
-- **Completitud de columnas**: Verificar que ciertas columnas contienen datos completos
-  ```
-  Completeness "column_name" > threshold_value
-  ```
-
-- **Longitud de columnas**: Comprobar que la longitud de ciertos campos está dentro de rangos esperados
-  ```
-  ColumnLength "column_name" between min_length and max_length
-  ```
-
-- **Desviación estándar**: Validar que los valores no se desvían demasiado de lo normal
-  ```
-  StandardDeviation "column_name" between min_std and max_std
-  ```
-
-### 21.6 Visualización de resultados
-
-Después de ejecutar un trabajo con reglas de calidad de datos:
-- Puedes ver los resultados directamente en la interfaz de Glue Studio
-- Se muestra qué reglas han pasado o fallado
-- Se proporcionan detalles sobre las violaciones específicas
-
-Por ejemplo, una regla podría fallar porque:
-- La desviación estándar en un campo de fecha está fuera de lo esperado
-- Los valores de columna vistos no coinciden con patrones históricos
-
-Estos resultados pueden indicar:
-- Umbrales demasiado restrictivos (falsos positivos)
-- Problemas reales con los datos
-- Outliers que podrían afectar análisis posteriores
-
-AWS Glue Data Quality es una herramienta valiosa para garantizar que los datos que fluyen a través de tus pipelines ETL mantienen la calidad necesaria para análisis y machine learning efectivos.
-
-
-## 22. AWS Glue DataBrew
-
-### 22.1 Introducción a AWS Glue DataBrew
-
-AWS Glue DataBrew es una herramienta visual de preparación de datos que definitivamente necesitas conocer en el campo de la ingeniería de datos y para el examen AWS Machine Learning - Specialty. Es una interfaz de usuario específicamente diseñada para transformar datos, representando la "T" (Transform) de tu proceso ETL.
-
-### 22.2 Características principales
-
-DataBrew es una interfaz de usuario para el preprocesamiento de grandes conjuntos de datos que ofrece:
-
-- **Fuentes de datos versátiles**: Los datos pueden provenir de:
-  - Amazon S3
-  - Data warehouses
-  - Cualquier base de datos que desees
-
-- **Destino de salida**: Tras ser transformados por DataBrew, los datos se envían a S3
-
-- **Transformaciones predefinidas**: Más de 250 transformaciones listas para usar que puedes aplicar visualmente a tus datos
-  - Puedes simplemente arrastrar y soltar estas transformaciones en DataBrew
-  - Prácticamente cualquier transformación que puedas imaginar probablemente esté incluida
-
-### 22.3 Recetas y trabajos
-
-DataBrew permite crear "recetas" de transformaciones que pueden guardarse como trabajos dentro de un proyecto más grande:
-
-- **Recetas**: Conjuntos de transformaciones que quieres aplicar a tus datos
-  - Pueden guardarse y reutilizarse
-  - Pueden aplicarse a diferentes proyectos y conjuntos de datos
-
-- **Acciones de receta**: Las recetas están compuestas por acciones individuales
-  - Cada acción representa una transformación específica
-  - La documentación de AWS detalla todas estas acciones de receta
-
-### 22.4 Ejemplo de acción de receta: Nest to Map
-
-Un ejemplo concreto de acción de receta es "Nest to Map":
-
-- **Propósito**: Toma columnas seleccionadas y las convierte en pares clave-valor
-  - En lugar de columnas individuales, convierte los datos en un documento JSON con mapeos clave-valor
+- Herramientas de preparación de datos (SageMaker Data Wrangler, Glue DataBrew)
+
+#### 16.3.2. Estructura organizativa
+Feature Store organiza las features en:
+- **Feature Store**: El repositorio completo que contiene todas las features
+- **Feature Groups**: Agrupaciones lógicas de features relacionadas
   
-- **Parámetros**:
-  - **Source columns**: Especifica qué columnas quieres anidar
-    - Ejemplo: "age", "weight_kilogram", "height_centimeter"
-  - **Column name**: El nombre de la nueva columna que contendrá el mapa
-  - **Remove source columns**: Opción para eliminar las columnas originales después de la transformación
+Cada Feature Group contiene:
+- **Record Identifiers**: Identificadores únicos para cada registro
+- **Feature Names**: Nombres de las features almacenadas
+- **Event Times**: Marcas temporales asociadas a cada feature
 
-- **Resultado**: 
-  - Una nueva columna con un mapa JSON que contiene todos los valores
-  - Por ejemplo: `{"age": 53, "weight_kilogram": 100, "height_centimeter": 180}`
+### 16.4. Modos de Funcionamiento
 
-### 22.5 Características adicionales
+SageMaker Feature Store opera en dos modos principales, permitiendo tanto acceso en tiempo real como procesamiento por lotes.
 
-DataBrew ofrece otras funcionalidades importantes:
+#### 16.4.1. Almacenamiento online (Online Store)
+- **Propósito**: Servir features con baja latencia para inferencia en tiempo real
+- **Acceso**: A través de la API GetRecord
+- **Casos de uso**: Aplicaciones que requieren respuestas inmediatas (recomendaciones en tiempo real, detección de fraude, etc.)
+- **Característica**: Optimizado para consultas rápidas por ID de registro
 
-- **Reglas de calidad de datos**: Define reglas para asegurar que tus datos tienen sentido durante el proceso
-- **Conjuntos de datos personalizados**: Crea conjuntos de datos utilizando SQL personalizado desde:
-  - Amazon Redshift
-  - Snowflake
+#### 16.4.2. Almacenamiento offline (Offline Store)
+- **Propósito**: Almacenar grandes volúmenes de datos históricos para entrenamiento y análisis
+- **Ubicación**: Amazon S3
+- **Acceso**: Compatible con herramientas como Athena, Data Wrangler, o cualquier servicio que pueda leer de S3
+- **Casos de uso**: Entrenamiento de modelos, análisis histórico, exploración de datos
+- **Característica**: Optimizado para procesamiento por lotes y análisis
 
-### 22.6 Seguridad en DataBrew
+### 16.5. Flujos de Datos en Feature Store
 
-AWS Glue DataBrew incorpora varias medidas de seguridad:
+Feature Store admite dos patrones principales para la ingesta y el consumo de datos.
 
-- **Integración con KMS**: Utiliza exclusivamente claves maestras del cliente
-- **SSL en tránsito**: Para proteger los datos durante la transmisión
-- **IAM**: Para restringir quién puede hacer qué acciones
-- **Integración con servicios de monitoreo**:
-  - CloudWatch: Para alarmas y monitoreo
-  - CloudTrail: Para auditoría y gobernanza
+#### 16.5.1. Flujo de streaming
+1. Los datos fluyen desde fuentes de streaming (Kinesis, MSK, Apache Spark, etc.)
+2. Se utiliza la API PutRecord para insertar datos en Feature Store
+3. Feature Store procesa los datos y los almacena simultáneamente en:
+   - Online Store para acceso de baja latencia
+   - Offline Store (S3) para almacenamiento histórico
+4. Las aplicaciones pueden acceder a las features en tiempo real mediante la API GetRecord
 
-## 23. Handling PII in DataBrew Transformations
+#### 16.5.2. Flujo por lotes
+1. Los datos se cargan directamente en el Offline Store (S3)
+2. Feature Store automáticamente crea un catálogo de datos en AWS Glue
+3. Los datos pueden ser consultados y procesados mediante servicios como Athena
+4. Opcionalmente, los datos pueden ser sincronizados con el Online Store para inferencia en tiempo real
 
-### 23.1 Técnicas para manejar PII
+#### 16.5.3. Flexibilidad de implementación
+Feature Store ofrece flexibilidad para adaptarse a diferentes requisitos:
+- Puede utilizarse solo el Offline Store para casos de uso por lotes
+- Puede utilizarse solo el Online Store para casos de uso de baja latencia
+- Pueden utilizarse ambos almacenes para aprovechar las ventajas de cada uno
 
-La guía del examen destaca el manejo de información de identificación personal (PII) en transformaciones DataBrew. Estas son las técnicas disponibles:
+### 16.6. Seguridad en Feature Store
 
-#### 23.1.1 Substitution
-- Reemplazar PII con números aleatorios u otra información no identificable
+SageMaker Feature Store incorpora múltiples capas de seguridad para proteger datos potencialmente sensibles.
 
-#### 23.1.2 Shuffle
-- Mezclar todos los valores PII entre diferentes filas
-- Por ejemplo, asignar el número de tarjeta de crédito de la Persona A a la Persona B
+#### 16.6.1. Cifrado
+- Cifrado automático de datos en reposo (en almacenamiento)
+- Cifrado automático de datos en tránsito (durante transferencia)
+- Soporte para claves maestras de cliente (CMK) a través de AWS KMS
 
-#### 23.1.3 Deterministic Encryption
-- Cifrado donde un valor dado siempre resulta en el mismo valor cifrado
+#### 16.6.2. Control de acceso
+- Control de acceso granular mediante políticas de IAM
+- Posibilidad de definir permisos a nivel de Feature Group
+- Segregación de acceso entre equipos o proyectos
 
-#### 23.1.4 Probabilistic Encryption
-- Sistema donde puede haber más de un resultado del cifrado para un campo dado
+#### 16.6.3. Conectividad segura
+- Soporte para AWS PrivateLink
+- Posibilidad de acceder a Feature Store sin exponer tráfico a internet pública
+- Integración con VPC para mayor aislamiento
 
-#### 23.1.5 Decrypt
-- Permite descifrar información previamente cifrada
+### 16.7. Casos de Uso Comunes
 
-#### 23.1.6 Delete
-- Posiblemente la mejor manera de manejar PII es eliminarla completamente
-- Usar la transformación "Delete" para descartar esa información
+SageMaker Feature Store es especialmente útil en varios escenarios de machine learning.
 
-#### 23.1.7 Masking
-- Mostrar solo parte de la información (como los últimos cuatro dígitos de una tarjeta de crédito)
-- El resto se enmascara o codifica
+#### 16.7.1. Entrenamiento de modelos
+- Almacenamiento consistente de features para entrenar múltiples modelos
+- Captura de point-in-time para entrenamiento con datos históricos
+- Reutilización de features para diferentes proyectos
 
-#### 23.1.8 Hashing
-- Aplicar una función hash criptográfica al valor
-- Múltiples valores pueden tener el mismo resultado hash
-- Proporciona cierto anonimato
+#### 16.7.2. Inferencia en tiempo real
+- Acceso de baja latencia a features actualizadas
+- Consistencia entre entrenamiento e inferencia
+- Reducción del trabajo de preprocesamiento en tiempo de inferencia
 
-Estas son las transformaciones específicas en DataBrew para manejar información personalmente identificable.
+#### 16.7.3. Colaboración entre equipos
+- Repositorio centralizado para compartir features entre equipos
+- Documentación y metadatos sobre features
+- Reducción de la duplicación de esfuerzos
 
-## 24. Amazon Athena
+---
 
-### 24.1 Introducción a Amazon Athena
+## Resumen para el Examen
 
-Amazon Athena es un motor de consulta interactivo serverless para datos almacenados en S3. Te permite consultar grandes data lakes en S3 como si fueran bases de datos SQL, sin necesidad de cargar los datos en un sistema intermedio.
+### SageMaker Feature Store - Conceptos Clave
+- **Definición**: Repositorio centralizado para almacenar, gestionar y compartir features de machine learning
+- **Propósito**: Proporcionar acceso rápido, seguro y consistente a features para entrenamiento e inferencia
+- **Estructura**: Organiza features en Feature Groups, cada una con identificadores de registro, nombres de features y marcas temporales
 
-### 24.2 Características principales
+### Modos de Almacenamiento
 
-- **Motor de consulta interactivo para S3**: Proporciona una interfaz SQL para tus datos en S3
-- **Sin carga de datos**: Los datos permanecen en S3; no es necesario cargarlos en una base de datos intermedia
-- **Basado en Presto**: Aunque ha evolucionado significativamente desde sus orígenes
-- **Totalmente serverless**: No necesitas gestionar la infraestructura subyacente
-- **Facilidad de uso**: Simplemente accedes a la consola de Athena, apuntas a tus datos en S3 y empiezas a escribir consultas
+| Almacenamiento | Propósito | Características | Casos de Uso |
+|----------------|-----------|-----------------|--------------|
+| **Online Store** | Inferencia en tiempo real | Baja latencia, acceso por API GetRecord | Predicciones en tiempo real, sistemas interactivos |
+| **Offline Store** | Entrenamiento e histórico | Basado en S3, compatible con análisis, catálogo en AWS Glue | Entrenamiento de modelos, análisis histórico |
 
-### 24.3 Formatos de datos compatibles
+### Flujos de Datos
+- **Streaming**: API PutRecord para insertar datos en tiempo real, almacenados tanto en Online como en Offline Store
+- **Batch**: Carga directa en Offline Store (S3), consulta mediante Athena u otras herramientas
 
-Athena soporta múltiples formatos de datos:
+### Seguridad
+- Cifrado automático en reposo y en tránsito
+- Soporte para claves KMS personalizadas
+- Control de acceso granular mediante IAM
+- Integración con PrivateLink para mayor seguridad de red
 
-#### 24.3.1 Formatos legibles por humanos
-- CSV (valores separados por comas)
-- TSV (valores separados por tabulaciones)
-- JSON
+**Consejo para el examen**: Comprende bien la diferencia entre Online Store y Offline Store, así como sus casos de uso. El Online Store está optimizado para inferencia en tiempo real con baja latencia, mientras que el Offline Store (S3) está diseñado para entrenamiento por lotes y análisis. Feature Store no solo almacena datos, sino que proporciona una estructura organizativa (Feature Groups) y garantiza consistencia entre entrenamiento e inferencia.
 
-#### 24.3.2 Formatos columnares y divisibles
-- ORC (formato columnar optimizado)
-- Parquet (formato columnar)
+## 17. SageMaker Canvas
 
-#### 24.3.3 Otros formatos divisibles
-- Avro (divisible pero no columnar)
+### 17.1. Introducción a SageMaker Canvas
 
-#### 24.3.4 Compresión
+SageMaker Canvas representa la solución de AWS para democratizar el machine learning, permitiendo que personas sin conocimientos de programación o experiencia en ML puedan crear y utilizar modelos predictivos.
+
+#### 17.1.1. Definición y concepto
+SageMaker Canvas es:
+- Un entorno de machine learning **sin código** (no-code)
+- Orientado principalmente a analistas de negocio y usuarios no técnicos
+- Una plataforma visual para crear modelos predictivos sin necesidad de programar
+- Una forma de implementar AutoML (Automated Machine Learning)
+
+#### 17.1.2. Relevancia para el examen
+Según la transcripción, SageMaker Canvas aparecerá con certeza en el examen AWS Certified Machine Learning - Associate, probablemente con una o dos preguntas. Es importante entender su propósito y capacidades básicas.
+
+### 17.2. Principales Capacidades
+
+SageMaker Canvas ofrece diversas funcionalidades que facilitan el ciclo de vida completo del machine learning para usuarios no técnicos.
+
+#### 17.2.1. Preparación de datos
+- **Importación**: Acepta archivos CSV como fuente de datos
+- **Unión de datos**: Permite combinar múltiples conjuntos de datos
+- **Limpieza automática**: Detecta y maneja automáticamente:
+  - Valores faltantes
+  - Valores atípicos (outliers)
+  - Filas duplicadas
+  - Otros problemas comunes de calidad de datos
+
+#### 17.2.2. Construcción de modelos
+- **Selección de objetivo**: El usuario simplemente especifica la columna que desea predecir
+- **AutoML**: Utiliza técnicas automatizadas para:
+  - Seleccionar algoritmos apropiados
+  - Ajustar hiperparámetros
+  - Evaluar diferentes modelos
+  - Elegir el mejor modelo para el caso de uso
+- **Tipos de predicción**:
+  - Clasificación (para predecir categorías)
+  - Regresión (para predecir valores numéricos)
+
+#### 17.2.3. Predicciones y uso
+- **Generación de predicciones**: Permite usar el modelo para hacer predicciones sobre nuevos datos
+- **Visualización de resultados**: Muestra resultados de forma comprensible y visual
+- **Retroalimentación**: Facilita el mejoramiento iterativo de los modelos
+
+### 17.3. Integración con SageMaker Studio
+
+Canvas no es un entorno aislado, sino que se integra con otras partes del ecosistema SageMaker.
+
+#### 17.3.1. Compartir recursos
+- Capacidad para compartir modelos con usuarios de SageMaker Studio
+- Posibilidad de compartir los conjuntos de datos utilizados en el entrenamiento
+
+#### 17.3.2. Flujo de trabajo colaborativo
+- Los analistas de negocio pueden crear modelos iniciales en Canvas
+- Los ingenieros de ML pueden importar estos modelos a SageMaker Studio
+- Permite refinamiento adicional y personalización por parte de especialistas
+
+#### 17.3.3. Exportación de modelos
+- Los modelos creados en Canvas pueden exportarse a SageMaker Studio
+- Facilita la transición de un prototipo rápido a una implementación más robusta
+- Permite aprovechar lo mejor de ambos entornos
+
+### 17.4. Capacidades de IA Generativa
+
+Una característica destacada de las versiones recientes de SageMaker Canvas es su soporte para modelos de IA generativa.
+
+#### 17.4.1. Acceso a modelos base
+- Integración con modelos de Amazon Bedrock
+- Acceso a modelos disponibles en SageMaker JumpStart
+- Interfaz simplificada para utilizar modelos de lenguaje de gran escala
+
+#### 17.4.2. Personalización de modelos
+- Capacidad para realizar fine-tuning (ajuste fino) de modelos base
+- Adaptación de modelos generativos a datos y casos de uso específicos
+- Todo sin necesidad de experiencia en IA o ML
+
+#### 17.4.3. Creación de aplicaciones generativas
+- Permite desarrollar aplicaciones basadas en IA generativa
+- Facilita la implementación de casos de uso como:
+  - Generación de texto
+  - Resumen de documentos
+  - Respuesta a preguntas
+  - Otras aplicaciones de procesamiento de lenguaje natural
+
+### 17.5. Casos de Uso Ideales
+
+SageMaker Canvas es particularmente adecuado para ciertos escenarios y usuarios.
+
+#### 17.5.1. Usuarios objetivo
+- Analistas de negocio sin conocimientos de programación
+- Profesionales de dominio con experiencia en sus campos pero sin habilidades técnicas de ML
+- Equipos que necesitan prototipos rápidos antes de involucrar a especialistas
+
+#### 17.5.2. Escenarios de aplicación
+- **Análisis predictivo**: Previsión de ventas, estimación de demanda
+- **Segmentación de clientes**: Clasificación basada en comportamientos o características
+- **Detección de anomalías**: Identificación de transacciones inusuales
+- **Análisis de sentimiento**: Evaluación de feedback de clientes
+- **Generación de contenido**: Creación de textos, resúmenes o respuestas utilizando IA generativa
+
+#### 17.5.3. Ventajas para la organización
+- Acelera la adopción de ML en diferentes departamentos
+- Reduce la dependencia de recursos técnicos escasos
+- Permite a los expertos de dominio aplicar ML directamente a sus problemas
+- Sirve como puente entre el negocio y los equipos técnicos
+
+---
+
+## Resumen para el Examen
+
+### SageMaker Canvas - Conceptos Clave
+- **Definición**: Entorno de machine learning sin código (no-code) para usuarios no técnicos
+- **Usuarios objetivo**: Principalmente analistas de negocio sin experiencia en programación o ML
+- **Funcionalidad principal**: Permite crear modelos predictivos automáticamente a partir de datos CSV
+
+### Capacidades Principales
+
+| Categoría | Características |
+|-----------|-----------------|
+| **Preparación de datos** | Importación de CSV, unión de datos, limpieza automática (valores faltantes, outliers, duplicados) |
+| **Construcción de modelos** | AutoML, selección de columna objetivo, clasificación y regresión |
+| **Colaboración** | Compartir modelos y datos con SageMaker Studio, exportación de modelos |
+| **IA Generativa** | Acceso a modelos de Bedrock y JumpStart, capacidad de fine-tuning, creación de aplicaciones generativas |
+
+### Beneficios Clave
+- Democratiza el acceso al ML para usuarios no técnicos
+- Automatiza tareas complejas como limpieza de datos y selección de algoritmos
+- Integra flujos de trabajo entre usuarios técnicos y no técnicos
+- Permite aprovechar la IA generativa sin conocimientos especializados
+
+**Consejo para el examen**: Recuerda que SageMaker Canvas es más que una simple herramienta de AutoML; también ofrece capacidades de preparación de datos, limpieza automática e integración con modelos generativos. Su valor principal está en permitir que usuarios sin conocimientos técnicos creen y utilicen modelos de machine learning, funcionando como "ML para las masas".
+
+
+## 18. AWS Glue
+
+### 18.1. Introducción a AWS Glue
+
+AWS Glue es un servicio fundamental para la preparación y transformación de datos dentro del ecosistema AWS. Según la transcripción, este tema tiene una gran relevancia en el examen AWS Certified Machine Learning - Associate.
+
+#### 18.1.1. Definición y propósito
+AWS Glue es:
+- Un servicio serverless (sin servidor) para ETL (Extract, Transform, Load)
+- Un sistema que descubre y define automáticamente esquemas de datos no estructurados
+- Un repositorio centralizado de metadatos para lagos de datos (data lakes)
+- Un servicio que permite consultar datos no estructurados usando herramientas SQL
+
+#### 18.1.2. Importancia en el examen
+La transcripción menciona explícitamente que AWS Glue "es un gran tema en el examen" y que "juega un papel importante en el examen actual", por lo que es crucial comprender bien este servicio y su integración con otras herramientas de AWS.
+
+### 18.2. Componentes Principales de AWS Glue
+
+AWS Glue consta de varios componentes clave que trabajan juntos para proporcionar sus funcionalidades de ETL y catalogación.
+
+#### 18.2.1. Glue Crawler
+- **Propósito**: Escanea datos en fuentes como S3 para inferir su esquema
+- **Funcionamiento**: Analiza la estructura de los datos y determina automáticamente tipos de datos, nombres de columnas, etc.
+- **Programación**: Puede ejecutarse periódicamente o bajo demanda
+- **Utilidad**: Permite descubrir y mantener actualizados los esquemas a medida que cambian los datos
+
+#### 18.2.2. Glue Data Catalog
+- **Propósito**: Actúa como repositorio centralizado de metadatos
+- **Contenido**: Almacena definiciones de tablas, esquemas y ubicaciones de datos
+- **Integración**: Se integra con servicios como Amazon Athena, Redshift, EMR y otras herramientas SQL
+- **Característica clave**: Los datos originales permanecen en su ubicación (como S3) mientras que el catálogo solo almacena metadatos
+
+#### 18.2.3. Glue ETL (Jobs)
+- **Propósito**: Transformar datos según necesidades específicas
+- **Tecnología subyacente**: Utiliza Apache Spark sin necesidad de gestionar el clúster
+- **Activación**: Puede ejecutarse por eventos (llegada de nuevos datos), según un horario programado o bajo demanda
+- **Ventaja**: Totalmente gestionado, sin infraestructura que mantener
+
+### 18.3. Particionamiento de Datos en S3 para Glue
+
+La organización de los datos en S3 afecta significativamente la eficiencia de AWS Glue y de las consultas posteriores.
+
+#### 18.3.1. Importancia del particionamiento
+- El particionamiento adecuado permite consultas más eficientes
+- Glue Crawler extrae particiones basadas en la estructura de directorios en S3
+- La organización debe planificarse considerando los patrones de consulta más comunes
+
+#### 18.3.2. Estrategias de particionamiento
+- **Particionamiento por tiempo**: Estructura como `/año/mes/día/`
+  - Ideal para consultas basadas principalmente en rangos temporales
+  - Ejemplo: Datos de sensores consultados por periodos específicos
+
+- **Particionamiento por entidad**: Estructura como `/dispositivo/año/mes/día/`
+  - Ideal para consultas basadas principalmente en entidades específicas
+  - Ejemplo: Buscar todos los datos de un dispositivo particular independientemente del tiempo
+
+#### 18.3.3. Ejemplo práctico
+Para datos de sensores que envían información cada hora:
+- Si las consultas son principalmente por tiempo: `/año/mes/día/dispositivo/`
+- Si las consultas son principalmente por dispositivo: `/dispositivo/año/mes/día/`
+
+La elección correcta del esquema de particionamiento puede marcar una diferencia significativa en el rendimiento de las consultas.
+
+### 18.4. AWS Glue Studio
+
+Glue Studio es una interfaz visual para la creación y gestión de trabajos ETL, simplificando el proceso para usuarios menos técnicos.
+
+#### 18.4.1. Características principales
+- **Interfaz visual**: Crea flujos de trabajo ETL sin necesidad de escribir código
+- **Grafos dirigidos acíclicos (DAGs)**: Permite definir flujos de trabajo complejos con procesamiento en paralelo
+- **Fuentes de datos compatibles**: S3, Kinesis, Kafka, y fuentes JDBC
+- **Transformaciones visuales**: Permite transformar datos, crear muestras, unir tablas, etc.
+- **Destinos**: Puede enviar datos procesados a S3 o al Glue Data Catalog
+- **Soporte para particionamiento**: Aprovecha automáticamente los datos particionados
+
+#### 18.4.2. Dashboard de monitoreo
+- Permite visualizar el estado de trabajos ETL
+- Muestra trabajos en ejecución, completados y fallados
+- Proporciona métricas de rendimiento y uso de recursos
+- Facilita la solución de problemas y la optimización
+
+#### 18.4.3. Flujo de trabajo típico
+1. Seleccionar fuente de datos (S3, RDS, Redshift, Kinesis, Kafka, etc.)
+2. Configurar transformaciones mediante la interfaz visual
+3. Especificar destino para los datos procesados
+4. Programar o ejecutar el trabajo
+5. Monitorear la ejecución a través del dashboard
+
+### 18.5. AWS Glue Data Quality
+
+Glue Data Quality es una característica que permite evaluar automáticamente la calidad de los datos durante el procesamiento ETL.
+
+#### 18.5.1. Propósito y funcionalidad
+- Evalúa la calidad de los datos según reglas predefinidas
+- Puede integrarse como un paso en los trabajos de Glue
+- Permite detectar problemas de calidad antes de que afecten análisis posteriores
+
+#### 18.5.2. Creación de reglas
+- **Creación manual**: Definir reglas específicas según necesidades
+- **Creación automática**: Inferir reglas a partir de datos de referencia considerados "buenos"
+- **DQDL (Data Quality Definition Language)**: Lenguaje específico para definir reglas de calidad
+
+#### 18.5.3. Tipos de reglas comunes
+- Validación de recuentos de filas
+- Verificación de completitud de columnas
+- Comprobación de rangos de valores
+- Validación de desviaciones estándar
+
+#### 18.5.4. Acciones ante violaciones
+- **Fallo del trabajo**: Detener el proceso ETL si no se cumplen criterios de calidad
+- **Notificación en CloudWatch**: Registrar problemas sin detener el proceso para revisión posterior
+
+### 18.6. AWS Glue DataBrew
+
+DataBrew es una herramienta visual específicamente diseñada para la preparación y transformación de datos sin necesidad de programación.
+
+#### 18.6.1. Propósito y características
+- **Interfaz visual**: Para preprocesamiento de grandes conjuntos de datos
+- **Fuentes de datos**: S3, data warehouses o cualquier base de datos
+- **Destino**: Los datos transformados se almacenan en S3
+- **Transformaciones predefinidas**: Más de 250 transformaciones listas para usar
+
+#### 18.6.2. Organización de trabajo
+- **Proyectos**: Agrupan conjuntos de transformaciones relacionadas
+- **Recetas**: Secuencias de transformaciones que pueden reutilizarse
+- **Acciones de receta**: Transformaciones individuales que componen una receta
+
+#### 18.6.3. Funcionalidades adicionales
+- Definición de reglas de calidad de datos
+- Creación de conjuntos de datos con SQL personalizado desde Redshift y Snowflake
+- Integración con KMS, IAM, CloudWatch y CloudTrail
+
+### 18.7. Manejo de Información Personal Identificable (PII) en DataBrew
+
+DataBrew ofrece varias técnicas para manejar adecuadamente datos sensibles.
+
+#### 18.7.1. Técnicas de gestión de PII
+- **Sustitución**: Reemplazar PII con valores aleatorios
+- **Shuffling (mezcla)**: Reorganizar valores de PII entre diferentes registros
+- **Deterministic Encryption**: Cifrado donde un valor siempre produce el mismo resultado cifrado
+- **Probabilistic Encryption**: Cifrado donde un valor puede producir diferentes resultados cifrados
+- **Decrypt**: Proceso para revertir la encriptación
+- **Delete**: Eliminación completa de la información
+- **Masking (enmascaramiento)**: Ocultar parcialmente información (ej: mostrar solo últimos 4 dígitos)
+- **Hashing**: Aplicar funciones hash para anonimizar datos
+
+#### 18.7.2. Consideraciones para el examen
+La transcripción menciona específicamente que el manejo de PII en DataBrew es un tema mencionado en la guía del examen, lo que sugiere su relevancia para la certificación.
+
+---
+
+## Resumen para el Examen
+
+### AWS Glue - Conceptos Clave
+- **Definición**: Servicio serverless de ETL que descubre y define esquemas automáticamente
+- **Propósito principal**: Actuar como repositorio central de metadatos para lagos de datos
+- **Componentes principales**: Crawler, Data Catalog y ETL Jobs
+- **Tecnología subyacente**: Apache Spark (sin necesidad de gestionar el clúster)
+
+### Componentes y Características
+
+| Componente | Propósito | Características principales |
+|------------|-----------|----------------------------|
+| **Glue Crawler** | Inferir esquemas de datos | Escanea datos, identifica estructura, puede programarse |
+| **Glue Data Catalog** | Almacenar metadatos | Repositorio central, integración con servicios SQL |
+| **Glue ETL** | Transformar datos | Basado en Spark, serverless, activación flexible |
+| **Glue Studio** | Crear visualmente flujos ETL | Interfaz gráfica, DAGs, monitoreo de trabajos |
+| **Glue Data Quality** | Evaluar calidad de datos | Reglas automáticas o manuales, DQDL |
+| **Glue DataBrew** | Preparar datos visualmente | +250 transformaciones, recetas, manejo de PII |
+
+### Particionamiento en S3
+- **Importancia**: Afecta directamente la eficiencia de consultas
+- **Estrategias**: 
+  - Por tiempo (`/año/mes/día/dispositivo/`) - para consultas temporales
+  - Por entidad (`/dispositivo/año/mes/día/`) - para consultas por entidad
+
+### Gestión de PII en DataBrew
+- **Técnicas**: Sustitución, Shuffling, Encriptación, Eliminación, Enmascaramiento, Hashing
+- **Consideración**: Mencionado específicamente en la guía del examen
+
+**Consejo para el examen**: Según la transcripción, AWS Glue es un tema importante en el examen actual. Asegúrate de comprender bien cómo Glue conecta diferentes servicios y cómo sus componentes (Crawler, Data Catalog, ETL) trabajan juntos. Presta especial atención al particionamiento en S3 y cómo afecta al rendimiento de las consultas, así como a las capacidades de Glue Studio, Data Quality y DataBrew.
+
+
+## 19. Amazon Athena
+
+### 19.1. Introducción a Amazon Athena
+
+Amazon Athena es un servicio de consultas interactivas que permite analizar datos almacenados en Amazon S3 utilizando SQL estándar, sin necesidad de mover los datos a un sistema de bases de datos tradicional.
+
+#### 19.1.1. Definición y características fundamentales
+- **Servicio serverless**: No requiere infraestructura para gestionar o escalar
+- **Motor de consultas interactivo**: Permite ejecutar consultas SQL ad-hoc sobre datos en S3
+- **Sin carga de datos**: Opera directamente sobre los datos en su ubicación original en S3
+- **Tecnología subyacente**: Basado originalmente en Presto, aunque ha evolucionado considerablemente
+
+#### 19.1.2. Formatos de datos compatibles
+Athena funciona con múltiples formatos de datos, cada uno con características particulares:
+
+| Formato | Tipo | Características | Optimizado para Athena |
+|---------|------|-----------------|------------------------|
+| **CSV, TSV** | Human-readable | Legibles por humanos, no splittable | No |
+| **JSON** | Human-readable | Legibles por humanos, no splittable | No |
+| **Avro** | Splittable | Se puede procesar en paralelo | Parcial |
+| **ORC** | Columnar, Splittable | Almacenamiento por columnas, procesamiento paralelo | Sí |
+| **Parquet** | Columnar, Splittable | Almacenamiento por columnas, procesamiento paralelo | Sí |
+
+Athena también soporta diversos formatos de compresión:
 - Snappy
 - Zlib
-- LZ4
+- AE (Amazon Encryption)
 - GZIP
 
-### 24.4 Puntos clave para el examen
+**Punto clave para el examen**: Los formatos columnares (ORC, Parquet) ofrecen mejor rendimiento y menores costos por permitir lecturas selectivas de columnas.
 
-- ORC y Parquet son formatos columnares y divisibles
-- Avro es solo divisible (no columnar)
-- CSV, TSV y JSON son formatos legibles por humanos
-- Los formatos divisibles permiten procesamiento en paralelo
-- Los formatos columnares aceleran consultas que solo necesitan columnas específicas
+#### 19.1.3. Tipos de datos compatibles
+- **Datos no estructurados**: Archivos de texto sin formato definido
+- **Datos semi-estructurados**: Como archivos JSON con cierta organización
+- **Datos estructurados**: Con esquema bien definido
 
-### 24.5 Tipos de datos compatibles
+### 19.2. Casos de Uso Comunes
 
-Athena puede trabajar con datos:
-- No estructurados
-- Semi-estructurados
-- Estructurados
+Athena es especialmente útil para varios escenarios habituales en el análisis de datos:
 
-Puede inferir un esquema examinando los datos o utilizar un esquema que tú proporciones.
+#### 19.2.1. Análisis de logs
+- Consultas ad-hoc sobre logs web almacenados en S3
+- Análisis de logs de servicios AWS (CloudTrail, CloudFront, VPC, ELB)
+- Alternativa preferida por AWS frente a Elasticsearch para este propósito
 
-### 24.6 Casos de uso
+#### 19.2.2. Exploración de datos previo a ETL
+- Examen de datos antes de cargarlos en Redshift
+- Verificación y validación de datos en staging
 
-- **Consultas ad hoc de logs web**: Alternativa preferida a Elasticsearch para consultar logs web en S3
-- **Consulta de datos de staging**: Antes de cargarlos en Redshift
-- **Análisis de logs diversos**: CloudTrail, CloudFront, VPC, Elastic Load Balancer, etc.
-- **Integración con herramientas de análisis**: 
-  - Notebooks (Jupyter, Zeppelin, RStudio)
-  - Interfaces ODBC y JDBC
-  - Amazon QuickSight para visualización
+#### 19.2.3. Integración con herramientas de análisis
+- Compatible con notebooks (Jupyter, Zeppelin, RStudio)
+- Interfaces ODBC y JDBC para integraciones diversas
+- Visualización con Amazon QuickSight
 
-Athena actúa como conector entre los datos no estructurados en S3 y herramientas de visualización o análisis estructurados como QuickSight.
+### 19.3. Integración con AWS Glue
 
-## 25. Athena y AWS Glue
+La combinación de AWS Glue y Amazon Athena representa un poderoso tándem para trabajar con datos en S3.
 
-### 25.1 Integración entre Athena y AWS Glue
+#### 19.3.1. Flujo de trabajo con Glue
+1. **Glue Crawler** escanea datos en S3 y descubre su esquema
+2. **Glue Data Catalog** almacena los metadatos y definiciones de tablas
+3. **Athena** automáticamente reconoce las tablas del Data Catalog
+4. **Consultas SQL** se ejecutan directamente sobre los datos en S3
 
-Para impartir estructura a datos no estructurados en S3 y permitir que Athena los consulte como una base de datos, se utiliza AWS Glue:
+#### 19.3.2. Beneficios de la integración
+- **Repositorio unificado de metadatos**: Permite consistencia entre diferentes servicios
+- **Mantenimiento automático de esquemas**: Actualización de definiciones ante cambios
+- **Versionado de esquemas**: Seguimiento de evolución de estructuras de datos
+- **Amplia compatibilidad**: Además de Athena, el catálogo es utilizable por RDS, Redshift, EMR y cualquier aplicación compatible con Apache Hive Metastore
 
-- El **Glue Crawler** explora los datos en S3 y popula el **Glue Data Catalog**
-- El Crawler extrae columnas y definiciones de tablas de los datos
-- Se puede usar la consola de Glue para refinar esta definición según sea necesario
+### 19.4. Workgroups (Grupos de Trabajo)
 
-Una vez que se publica un Glue Data Catalog para los datos en S3:
-- Athena lo ve automáticamente y construye una tabla a partir de él
-- Esto permite consultar los datos con SQL, como cualquier otra base de datos
+Los workgroups en Athena permiten organizar usuarios, equipos y cargas de trabajo para un mejor control y gestión.
 
-El Glue Data Catalog no es exclusivo para Athena, también puede ser utilizado por:
-- Amazon RDS
-- Amazon Redshift y Redshift Spectrum
-- Amazon EMR
-- Cualquier aplicación compatible con Apache Hive Metastore
+#### 19.4.1. Propósito y funcionalidades
+- **Organización**: Agrupar usuarios, equipos o aplicaciones
+- **Control de acceso**: Gestionar permisos por grupo
+- **Seguimiento de costos**: Monitorear gastos por equipo o proyecto
+- **Límites de consulta**: Establecer restricciones sobre volumen de datos escaneados
 
-Esta integración permite:
-- Crear un repositorio unificado de metadatos entre varios servicios
-- Descubrir esquemas mediante rastreo de datos
-- Mantener versiones de esquemas
-- Proporcionar una interfaz SQL a través de Athena
+#### 19.4.2. Características de gestión
+- **Integración con IAM**: Políticas de permisos específicas por workgroup
+- **Monitoreo con CloudWatch**: Métricas de uso y rendimiento
+- **Notificaciones con SNS**: Alertas cuando se alcanzan límites
+- **Historial de consultas separado**: Cada workgroup mantiene su propio historial
+- **Configuraciones de cifrado independientes**: Diferentes niveles de seguridad por grupo
 
-### 25.2 Athena Workgroups
+### 19.5. Modelo de Costos
 
-Los Workgroups (grupos de trabajo) en Athena permiten:
+Athena utiliza un modelo de precios simple basado en la cantidad de datos escaneados durante las consultas.
 
-- Organizar usuarios, equipos, aplicaciones y cargas de trabajo en diferentes grupos
-- Controlar el acceso a consultas para cada grupo de trabajo
-- Realizar seguimiento de costos por grupo de trabajo
+#### 19.5.1. Estructura de precios
+- **$5 por TB de datos escaneados** (precio actual, sujeto a cambios)
+- Se cobra por consultas **exitosas o canceladas**
+- No se cobra por consultas fallidas
+- Operaciones DDL (CREATE, ALTER, DROP) son gratuitas
 
-Características principales:
-- **Integración con IAM, CloudWatch y SNS**: Permite notificaciones cuando se alcanzan límites
-- **Límites de datos**: Se puede limitar cuántos datos pueden escanear las consultas por workgroup
-- **Historial de consultas individual**: Cada workgroup tiene su propio historial
-- **Políticas IAM separadas**: Cada workgroup puede tener sus propias políticas de permisos
-- **Configuración de cifrado individual**: Cada workgroup puede tener su propia configuración
+#### 19.5.2. Optimización de costos
+- **Uso de formatos columnares** (ORC, Parquet): Puede reducir costos entre 30-90%
+- **Particionamiento de datos**: Limitar el escaneo a particiones relevantes
+- **Compresión de datos**: Reducir el volumen total a escanear
 
-Los workgroups son útiles para:
-- Limitar el acceso de grupos específicos
-- Medir costos de diferentes equipos
-- Establecer límites sobre la cantidad de datos que pueden escanear las consultas
+**Nota importante**: Además de los costos de Athena, se aplican cargos separados por almacenamiento en S3 y uso de AWS Glue.
 
-### 25.3 Optimización del rendimiento de Athena
+### 19.6. CTAS (Create Table As Select)
 
-Para optimizar el rendimiento de Athena, se recomiendan tres enfoques principales:
+La instrucción CTAS es una funcionalidad poderosa de Athena que permite crear nuevas tablas a partir de resultados de consultas.
 
-#### 25.3.1 Usar formatos de datos columnares
-- **ORC o Parquet** ofrecen mejor rendimiento
-- Se pueden usar herramientas como Glue para transformar datos a estos formatos
-- Permiten a Athena leer selectivamente solo las columnas requeridas
+#### 19.6.1. Sintaxis y funcionamiento
+```sql
+CREATE TABLE new_table
+WITH (
+  format = 'PARQUET',
+  compression = 'SNAPPY'
+) 
+AS SELECT * FROM old_table;
+```
 
-#### 25.3.2 Tamaño y número de archivos
-- Un pequeño número de archivos grandes funciona mejor que muchos archivos pequeños
-- Los archivos columnares grandes ofrecen el mejor rendimiento
+#### 19.6.2. Casos de uso principales
+- **Conversión de formato**: Transformar datos de CSV/JSON a formatos más eficientes (ORC/Parquet)
+- **Creación de subconjuntos**: Extraer porciones específicas de datos para análisis
+- **Aplicación de transformaciones**: Modificar datos durante la creación de la nueva tabla
+- **Redireccionamiento de ubicación**: Almacenar resultados en ubicaciones específicas de S3
 
-#### 25.3.3 Utilizar particiones
-- Organizar datos en S3 en formato de partición que se alinee con los patrones de consulta
-- Por ejemplo, particionar por fecha si las consultas suelen filtrar por rangos de fechas
-- Para añadir particiones a bases de datos existentes, se puede usar el comando `MSCK REPAIR TABLE`
+#### 19.6.3. Ejemplo práctico
+```sql
+CREATE TABLE my_orc_task_table
+WITH (
+  format = 'ORC',
+  external_location = 's3://my-athena-results/my-orc-data/'
+) 
+AS SELECT * FROM old_table;
+```
+Este ejemplo crea una nueva tabla en formato ORC en una ubicación específica de S3.
 
-### 25.4 Soporte para transacciones ACID en Athena
+### 19.7. Optimización de Rendimiento
 
-Athena ofrece soporte para transacciones ACID (Atomicidad, Consistencia, Aislamiento, Durabilidad):
+Existen varias estrategias para mejorar el rendimiento de las consultas en Athena:
 
-- Permite a usuarios concurrentes modificar las mismas filas simultáneamente de manera segura
-- Utiliza **Apache Iceberg** bajo el capó
-- Para activarlo, añadir `TABLE_TYPE = 'ICEBERG'` al crear una tabla en Athena
-- Compatible con Elastic MapReduce, Apache Spark y cualquier sistema que soporte Apache Iceberg
-- Elimina la necesidad de bloqueo personalizado de registros
-- Ofrece operaciones de "time travel" para recuperar datos recientemente eliminados
+#### 19.7.1. Uso de formatos columnares
+- ORC y Parquet ofrecen mejor rendimiento que CSV, JSON o texto plano
+- Permiten lecturas selectivas de columnas relevantes
+- Reducen el volumen de datos a escanear
 
-Este es otro enfoque para lograr transacciones ACID, similar a las tablas gobernadas en Lake Formation:
-- Se puede configurar una tabla gobernada en Lake Formation y acceder con Athena 
-- O crear directamente una tabla en Athena con tipo Iceberg
+#### 19.7.2. Estructura óptima de archivos
+- **Preferir pocos archivos grandes** sobre muchos archivos pequeños
+- El tamaño ideal de archivo suele estar entre 128MB y 1GB
+- Evitar fragmentación excesiva de datos
 
-Para mantener el rendimiento con tablas ACID:
-- Es necesario compactar periódicamente los datos
-- Se usa el comando: `OPTIMIZE table_name REWRITE DATA USING BIN_PACK WHERE catalog = 'catalog_name'`
+#### 19.7.3. Particionamiento efectivo
+- Organizar datos según patrones de consulta más comunes
+- Alinear particiones con predicados de filtrado frecuentes
+- Usar `MSCK REPAIR TABLE` para añadir particiones a tablas existentes
 
-### 25.5 Control de acceso detallado al Catálogo de Datos de Glue
+### 19.8. Soporte para Transacciones ACID
 
-Athena permite control de acceso basado en IAM a nivel de base de datos y tabla para operaciones específicas:
+Una característica reciente de Athena es el soporte para transacciones ACID (Atomicidad, Consistencia, Aislamiento, Durabilidad).
 
-- Más amplio que los filtros de datos en Lake Formation (no es seguridad a nivel de celda, fila o columna)
-- Se aplica a todas las versiones de tabla, no se puede restringir a versiones específicas
+#### 19.8.1. Implementación y habilitación
+- Basado en Apache Iceberg
+- Se activa con la cláusula `TABLE_TYPE = 'ICEBERG'` al crear tablas
+```sql
+CREATE TABLE my_table (
+  id int,
+  data string
+)
+WITH (
+  TABLE_TYPE = 'ICEBERG'
+);
+```
 
-Requisitos mínimos:
-- Política IAM para Athena que otorgue acceso a la base de datos
-- Acceso al Glue Data Catalog en cada región
+#### 19.8.2. Ventajas principales
+- **Concurrencia segura**: Múltiples usuarios pueden modificar los mismos datos simultáneamente
+- **Modificaciones a nivel de fila**: Soporte para operaciones INSERT, UPDATE, DELETE
+- **Time travel**: Capacidad para consultar versiones anteriores de los datos
+- **Elimina necesidad de bloqueos personalizados**: Gestión automática de concurrencia
 
-Se pueden restringir operaciones como:
-- ALTER o CREATE DATABASE
-- CREATE TABLE
-- DROP DATABASE o DROP TABLE
-- REPAIR TABLE
-- SHOW DATABASES o SHOW TABLES
+#### 19.8.3. Mantenimiento y optimización
+- Requiere compactación periódica para mantener rendimiento
+- Usar comando de optimización para compactación:
+```sql
+OPTIMIZE table_name REWRITE DATA USING BIN_PACK;
+```
 
-Para implementar estos controles, es necesario mapear operaciones a acciones IAM específicas. Por ejemplo, para restringir DROP TABLE se necesitan permisos para:
-- Obtener la partición y particiones de la tabla
-- Obtener la tabla y la base de datos
-- Eliminar la tabla y la partición
+#### 19.8.4. Relación con Lake Formation
+- Alternativa a las tablas gobernadas (governed tables) de Lake Formation
+- Ambas ofrecen soporte ACID pero con diferentes implementaciones y administración
 
-### 25.6 Modelo de costos y seguridad
+### 19.9. Seguridad en Athena
 
-#### 25.6.1 Costos
-- Pago por uso: $5 por terabyte escaneado
-- Las consultas exitosas o canceladas cuentan para el volumen escaneado
-- Las consultas fallidas no generan cargos
-- Las operaciones DDL (CREATE, ALTER, DROP) son gratuitas
-- Los formatos columnares pueden ahorrar entre 30-90% en costos
-- La partición de datos también reduce costos al escanear menos datos
+Athena proporciona múltiples capas de seguridad para proteger tanto los datos como las consultas.
 
-#### 25.6.2 Seguridad
-Athena ofrece varias opciones de seguridad:
-- **Control de acceso**: IAM, ACLs y políticas de bucket S3
-- **Políticas IAM relevantes**: Amazon Athena Full Access y AWS QuickSight Athena Access
-- **Cifrado de resultados** en S3:
-  - SSE-S3: Cifrado del lado del servidor con clave administrada por S3
-  - SSE-KMS: Cifrado del lado del servidor con clave KMS
-  - CSE-KMS: Cifrado del lado del cliente con clave KMS
-- **Acceso entre cuentas**: Definido en la política de bucket S3
-- **Seguridad en tránsito**: TLS para todo el tráfico entre Athena y S3
+#### 19.9.1. Control de acceso
+- **IAM**: Políticas de permisos granulares
+- **ACLs de S3**: Control de acceso a nivel de bucket y objeto
+- **Políticas de bucket S3**: Permisos para acciones específicas
 
-### 25.7 Anti-patrones
+#### 19.9.2. Cifrado de resultados
+Athena permite cifrar los resultados de consultas en S3 mediante varios métodos:
+- **SSE-S3**: Cifrado del lado del servidor con claves administradas por S3
+- **SSE-KMS**: Cifrado del lado del servidor con claves administradas por KMS
+- **CSE-KMS**: Cifrado del lado del cliente con claves administradas por KMS
 
-Casos en los que no se recomienda usar Athena:
-- Para informes altamente formateados o visualizaciones (usar QuickSight en su lugar)
-- Para operaciones ETL (Extract, Transform, Load) - usar Glue ETL o Apache Spark en su lugar
+#### 19.9.3. Acceso entre cuentas
+- Posibilidad de acceder a buckets S3 en otras cuentas AWS
+- Requiere configuración de políticas de bucket apropiadas
+
+#### 19.9.4. Seguridad en tránsito
+- TLS para toda comunicación entre Athena y S3
+- Cifrado de comunicación entre componentes del servicio
+
+### 19.10. Control de Acceso Detallado al Catálogo de Glue
+
+Athena permite establecer permisos granulares sobre operaciones en bases de datos y tablas del Catálogo de Glue.
+
+#### 19.10.1. Alcance y limitaciones
+- Control a nivel de operación sobre bases de datos y tablas
+- No es seguridad a nivel de fila, columna o celda (como en Lake Formation)
+- No permite restricciones a versiones específicas de tablas
+
+#### 19.10.2. Configuración de permisos
+- Requiere políticas IAM específicas para Athena y Glue
+- Permite restringir operaciones como:
+  - ALTER o CREATE DATABASE
+  - CREATE TABLE
+  - DROP DATABASE o DROP TABLE
+  - MSCK REPAIR TABLE
+  - SHOW DATABASES o SHOW TABLES
+
+#### 19.10.3. Ejemplo de política
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "glue:GetPartition*",
+    "glue:GetTable",
+    "glue:GetDatabase",
+    "glue:DeleteTable",
+    "glue:DeletePartition*"
+  ],
+  "Resource": [
+    "arn:aws:glue:region:account:catalog",
+    "arn:aws:glue:region:account:database/database_name",
+    "arn:aws:glue:region:account:table/database_name/table_name"
+  ]
+}
+```
+Este ejemplo permite la operación DROP TABLE sobre una tabla específica.
+
+### 19.11. Antipatrones
+
+Existen casos donde Athena no es la mejor opción, según las propias recomendaciones de AWS:
+
+#### 19.11.1. Reportes altamente formateados
+- Athena es un motor de consultas, no una herramienta de reportería
+- Para visualizaciones sofisticadas, mejor usar QuickSight
+
+#### 19.11.2. Operaciones ETL complejas
+- Aunque puede realizar algunas transformaciones, no está optimizado para ETL extenso
+- Mejores alternativas: AWS Glue ETL, Apache Spark en EMR
+
+---
+
+## Resumen para el Examen
+
+### Amazon Athena - Conceptos Clave
+- **Definición**: Servicio serverless de consultas SQL interactivas sobre datos almacenados en S3
+- **Características**: No requiere carga de datos, opera directamente sobre S3, integración con Glue
+- **Modelo de costos**: $5 por TB escaneado, solo se cobra por consultas exitosas o canceladas
+
+### Optimización de Rendimiento y Costos
+
+| Estrategia | Beneficio | Implementación |
+|------------|-----------|----------------|
+| **Formatos columnares** | 30-90% reducción en costos, mejor rendimiento | Convertir datos a ORC/Parquet (usar CTAS) |
+| **Particionamiento** | Reduce datos escaneados | Organizar datos según patrones de consulta comunes |
+| **Archivos grandes** | Mejor rendimiento | Preferir pocos archivos grandes vs. muchos pequeños |
+| **Compresión** | Reduce volumen de datos | Usar Snappy, Zlib, etc. con formatos compatibles |
+
+### Características Avanzadas
+- **CTAS**: Permite transformar datos y cambiar formatos mediante SQL
+- **Workgroups**: Control, organización y seguimiento de usuarios/consultas
+- **Transacciones ACID**: Soporte mediante Apache Iceberg (`TABLE_TYPE = 'ICEBERG'`)
+- **Control de acceso detallado**: Permisos granulares sobre operaciones en catálogo de Glue
+
+**Consejo para el examen**: Recuerda que los formatos columnares (ORC, Parquet) son cruciales para optimizar tanto el rendimiento como los costos en Athena. Comprende la diferencia entre los diversos formatos (human-readable vs. columnar vs. splittable) y cómo el particionamiento adecuado de datos en S3 influye directamente en la eficiencia de las consultas. Familiarízate con CTAS como herramienta para convertir datos a formatos más eficientes, y con los métodos de cifrado disponibles (SSE-S3, SSE-KMS, CSE-KMS).
