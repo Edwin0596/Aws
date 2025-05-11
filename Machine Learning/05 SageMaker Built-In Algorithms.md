@@ -1,4 +1,4 @@
-# 05 SageMaker Built-In Algorithms
+#  SageMaker Built-In Algorithms
 
 ## 1. Introducing Amazon SageMaker
 
